@@ -1,11 +1,12 @@
-
+import Navbar from './Navbar.jsx'
 
 function App() {
-  
-
   return (
     <>
-      <h1>Welcome to React 25!</h1>
+      <Navbar />
+      <div className="app-root">
+        <h1>Welcome to React 25!</h1>
+      </div>
     </>
   )
 }
