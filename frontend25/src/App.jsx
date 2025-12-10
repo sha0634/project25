@@ -1,9 +1,9 @@
-import Navbar from './Navbar.jsx'
+import Landing from './pages/Landing'
 
 function App() {
   return (
     <>
-      <Navbar />
+      <Landing />
       <div className="app-root">
         <h1>Welcome to React 25!</h1>
       </div>
