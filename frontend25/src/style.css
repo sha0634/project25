@@ -11,7 +11,6 @@ body {
 
 #root {
 	margin: 0 auto;
-  	padding: 2rem;
   	text-align: center;
 	width: 100%;
 	min-height: 100vh;
@@ -23,7 +22,7 @@ body {
 	width: 100%;
 	background: #fff;
 	position: sticky;
-	top: 16px;
+	top: 42px;
 	z-index: 40;
 }
 .nav-inner {

@@ -1,4 +1,3 @@
-import Navbar from '../component/Navbar'
 import laptopIcon from '../assets/laptop.svg'
 import { motion } from 'framer-motion'
 
@@ -27,7 +26,6 @@ export default function Landing(){
 
     return(
         <div className="flex flex-col m-20 h-full w-full bg-white">
-            {/* <Navbar /> */}
             <div className="flex flex-col items-center justify-start  text-center  flex-1">
                 <motion.h1 
                     variants={container}
