@@ -1,14 +1,12 @@
 import Landing from './pages/Landing'
-
+import "./App.css";
+import Navbar from './component/Navbar'
 function App() {
   return (
-    <>
+    <div  >
+      <Navbar/>
       <Landing />
-      <div className="app-root">
-        <h1>Welcome to React 25!</h1>
-      </div>
-
-    </>
+    </div>
   )
 }
 
