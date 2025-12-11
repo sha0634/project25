@@ -1,8 +1,28 @@
+@import "tailwindcss";
+
+/* Remove the universal selector - Tailwind v4 handles resets */
+
+body {
+	margin: 0;
+	padding: 0;
+	width: 100%;
+	min-height: 100vh;
+}
+
+#root {
+	margin: 0 auto;
+  	text-align: center;
+	width: 100%;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
 .navbar {
 	width: 100%;
 	background: #fff;
 	position: sticky;
-	top: 0;
+	top: 42px;
 	z-index: 40;
 }
 .nav-inner {
