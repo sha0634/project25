@@ -20,7 +20,7 @@ body {
 
 .navbar {
 	width: 100%;
-	background: #fff;
+	background: transparent;
 	position: sticky;
 	top: 42px;
 	z-index: 40;
