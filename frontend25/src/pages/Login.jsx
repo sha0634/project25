@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const images = [
   "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg",
@@ -9,6 +10,13 @@ const images = [
 
 export default function LoginPage() {
   const [index, setIndex] = useState(0);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: ""
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -17,6 +25,34 @@ export default function LoginPage() {
 
     return () => clearInterval(timer);
   }, []);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setError("");
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!formData.email || !formData.password) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await login(formData.email, formData.password);
+
+    if (!result.success) {
+      setError(result.message || "Login failed");
+    }
+
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen w-full bg-[#EDE7FF] flex items-center justify-center">
@@ -29,15 +65,24 @@ export default function LoginPage() {
             Placify — Place Your Future.
           </p>
 
-          <div className="space-y-3">
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="relative">
               <img
-                src="/images/userimg.png"
+                src="/images/emailimg.png"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input
-                type="text"
-                placeholder="Username"
+                type="email"
+                name="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={handleChange}
                 className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[1cm]"
               />
             </div>
@@ -49,28 +94,26 @@ export default function LoginPage() {
               />
               <input
                 type="password"
+                name="password"
                 placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
                 className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[1cm]"
               />
             </div>
 
-              <Link to="/stdashboard ">
-            <button className="w-full bg-[#443097] text-white mt-4 py-2 rounded-xl shadow-md h-[1cm]">
-              Login Now
-              
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#443097] text-white mt-4 py-2 rounded-xl shadow-md h-[1cm] disabled:opacity-50"
+            >
+              {loading ? "Logging in..." : "Login Now"}
             </button>
-            </Link>
-            <Link to="/forget-password" className = "text-sm text-[#2b128f] font-semibold hover:underline ml-45">
-              forget password?
-            </Link>
-             
-
             
-
-
-
-
-          </div>
+            <Link to="/forget-password" className="text-sm text-[#2b128f] font-semibold hover:underline block text-right">
+              Forgot password?
+            </Link>
+          </form>
 
 
           <div className="text-center mt-4 font-semibold text-gray-600">

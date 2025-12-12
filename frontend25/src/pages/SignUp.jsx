@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const images = [
   "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg",
@@ -9,6 +10,16 @@ const images = [
 
 export default function SignUpPage() {
   const [index, setIndex] = useState(0);
+  const [userType, setUserType] = useState("student");
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    fullName: ""
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signup } = useAuth();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -17,6 +28,50 @@ export default function SignUpPage() {
 
     return () => clearInterval(timer);
   }, []);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setError("");
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    // Validation
+    if (!formData.username || !formData.email || !formData.password || !formData.fullName) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
+
+    const userData = {
+      username: formData.username,
+      email: formData.email,
+      password: formData.password,
+      userType: userType,
+      profile: {
+        fullName: formData.fullName
+      }
+    };
+
+    const result = await signup(userData);
+
+    if (!result.success) {
+      setError(result.message || "Error creating account");
+    }
+
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen w-full bg-[#EDE7FF] flex items-center justify-center">
@@ -29,7 +84,39 @@ export default function SignUpPage() {
             Placify — Place Your Future.
           </p>
 
-          <div className="space-y-3">
+          {error && (
+            <div className="mb-3 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* User Type Selection */}
+          <div className="flex gap-3 mb-4">
+            <button
+              type="button"
+              onClick={() => setUserType("student")}
+              className={`flex-1 py-2.5 rounded-xl font-semibold transition-all ${
+                userType === "student"
+                  ? "bg-gradient-to-r from-[#6d28d9] to-[#8b5cf6] text-white shadow-md"
+                  : "bg-[#F3EDFF] text-gray-700 hover:bg-[#E9DEFF]"
+              }`}
+            >
+              🎓 Student
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserType("company")}
+              className={`flex-1 py-2.5 rounded-xl font-semibold transition-all ${
+                userType === "company"
+                  ? "bg-gradient-to-r from-[#6d28d9] to-[#8b5cf6] text-white shadow-md"
+                  : "bg-[#F3EDFF] text-gray-700 hover:bg-[#E9DEFF]"
+              }`}
+            >
+              🏢 Company
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="relative">
               <img
                 src="/images/userimg.png"
@@ -37,7 +124,25 @@ export default function SignUpPage() {
               />
               <input
                 type="text"
+                name="fullName"
+                placeholder={userType === "company" ? "Company Name" : "Full Name"}
+                value={formData.fullName}
+                onChange={handleChange}
+                className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[0.9cm]"
+              />
+            </div>
+
+            <div className="relative">
+              <img
+                src="/images/userimg.png"
+                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
+              />
+              <input
+                type="text"
+                name="username"
                 placeholder="Username"
+                value={formData.username}
+                onChange={handleChange}
                 className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[0.9cm]"
               />
             </div>
@@ -49,7 +154,10 @@ export default function SignUpPage() {
               />
               <input
                 type="email"
+                name="email"
                 placeholder="Email"
+                value={formData.email}
+                onChange={handleChange}
                 className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[0.9cm]"
               />
             </div>
@@ -61,27 +169,22 @@ export default function SignUpPage() {
               />
               <input
                 type="password"
+                name="password"
                 placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
                 className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[0.9cm]"
               />
             </div>
 
-            <div className="relative">
-              <img
-                src="/images/passimg.png"
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
-              />
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                className="w-full px-10 py-3 bg-[#F3EDFF] rounded-xl outline-none h-[0.9cm]"
-              />
-            </div>
-
-            <button className="w-full bg-[#443097] text-white py-2 rounded-xl shadow-md h-[1cm]">
-              Sign Up
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#443097] text-white py-2 rounded-xl shadow-md h-[1cm] disabled:opacity-50"
+            >
+              {loading ? "Creating Account..." : "Sign Up"}
             </button>
-          </div>
+          </form>
 
           <div className="text-center mt-5 font-semibold text-gray-600">
             Sign up with Others

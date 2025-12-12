@@ -1,10 +1,12 @@
 import React from 'react'
 import { FiChevronDown } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
 
 export default function Navbar() {
   const navigate = useNavigate()
+  const { user, logout, isAuthenticated } = useAuth()
 
   return (
     <header className="navbar">
@@ -27,8 +29,19 @@ export default function Navbar() {
         </nav>
 
         <div className="nav-right">
-          <button className="login-btn" onClick={() => navigate('/login')}>Log in</button>
-          <button className="signup-btn" onClick={() => navigate('/signup')}>Sign up</button>
+          {isAuthenticated ? (
+            <>
+              <span className="text-gray-700 mr-4">
+                {user?.profile?.fullName} ({user?.userType})
+              </span>
+              <button className="login-btn" onClick={logout}>Logout</button>
+            </>
+          ) : (
+            <>
+              <button className="login-btn" onClick={() => navigate('/login')}>Log in</button>
+              <button className="signup-btn" onClick={() => navigate('/signup')}>Sign up</button>
+            </>
+          )}
         </div>
       </div>
     </header>
