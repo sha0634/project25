@@ -44,7 +44,31 @@ const uploadPicture = multer({
 });
 
 // Common routes
-router.post('/upload-picture', protect, uploadPicture.single('profilePicture'), uploadProfilePicture);
+router.post('/upload-picture', protect, (req, res, next) => {
+    uploadPicture.single('profilePicture')(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            // Multer-specific errors
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Image size must be less than 2MB'
+                });
+            }
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        } else if (err) {
+            // Custom errors (like file type validation)
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+        // No error, proceed to controller
+        next();
+    });
+}, uploadProfilePicture);
 
 // Student profile routes
 router.get('/student', protect, getStudentProfile);

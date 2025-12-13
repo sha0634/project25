@@ -51,12 +51,16 @@ export default function StudentProfile() {
             }).filter(q => q.trim()).join('\n');
           }
           
+          console.log('Profile picture from DB:', profile.profilePicture);
+          const imageUrl = profile.profilePicture ? `http://localhost:5000${profile.profilePicture}` : null;
+          console.log('Constructed image URL:', imageUrl);
+          
           setProfileData({
             name: profile.fullName || user?.username || "",
             email: data.user.email || "",
             phone: profile.phone || "",
             bio: profile.bio || "",
-            image: profile.profilePicture ? `http://localhost:5000${profile.profilePicture}` : null,
+            image: imageUrl,
             skills: profile.skills || [],
             qualifications: formattedQualifications,
           });
@@ -179,15 +183,20 @@ export default function StudentProfile() {
         body: formData,
       });
 
+      const data = await response.json();
+      console.log('Upload response:', data);
+
       if (response.ok) {
-        const data = await response.json();
+        const newImageUrl = `http://localhost:5000${data.profilePicture}`;
+        console.log('Image uploaded successfully. New URL:', newImageUrl);
         setProfileData({ 
           ...profileData, 
-          image: `http://localhost:5000${data.profilePicture}` 
+          image: newImageUrl
         });
         alert('Profile picture uploaded successfully!');
       } else {
         const error = await response.json();
+        console.error('Upload failed:', error);
         alert(`Error: ${error.message}`);
       }
     } catch (error) {

@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const path = require('path');
+const fs = require('fs').promises;
 const { parseCV } = require('../utils/cvParser');
 
 // @desc    Upload resume
@@ -191,11 +192,26 @@ exports.uploadProfilePicture = async (req, res) => {
             });
         }
 
+        // Delete old profile picture if exists
+        if (user.profile.profilePicture) {
+            try {
+                const oldFilePath = path.join(__dirname, '..', user.profile.profilePicture);
+                await fs.unlink(oldFilePath);
+                console.log('Deleted old profile picture:', oldFilePath);
+            } catch (err) {
+                console.log('Could not delete old profile picture (may not exist):', err.message);
+            }
+        }
+
         // Store relative path to profile picture
         const picturePath = `/uploads/profile-pictures/${req.file.filename}`;
         user.profile.profilePicture = picturePath;
 
         await user.save();
+
+        console.log('Profile picture saved to DB:', picturePath);
+        console.log('File saved to disk:', req.file.path);
+        console.log('Full URL will be: http://localhost:5000' + picturePath);
 
         res.status(200).json({
             success: true,
