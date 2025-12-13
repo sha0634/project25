@@ -1,6 +1,7 @@
 import laptopIcon from '../assets/laptop.svg'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useRef } from 'react'
+import { Check, Star, Monitor, BarChart3, Palette, Microscope, Smartphone, Scale, Heart, GraduationCap } from 'lucide-react'
 
 export default function Landing(){
     const text1 = "Unlock Your Potential.";
@@ -159,7 +160,7 @@ export default function Landing(){
                             className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow"
                         >
                             <div className="w-12 h-12 bg-[#6d28d9] bg-opacity-10 rounded-full flex items-center justify-center mb-4">
-                                <span className="text-2xl text-[#6d28d9]">✓</span>
+                                <Check className="w-6 h-6 text-[#6d28d9]" />
                             </div>
                             <h3 className="text-xl font-semibold mb-2 text-black">{feature.title}</h3>
                             <p className="text-gray-600">{feature.desc}</p>
@@ -280,7 +281,7 @@ export default function Landing(){
                                     className="flex items-start gap-3"
                                 >
                                     <div className="flex-shrink-0 w-6 h-6 bg-[#6d28d9] bg-opacity-10 rounded-full flex items-center justify-center mt-1">
-                                        <span className="text-[#6d28d9] text-sm">✓</span>
+                                        <Check className="w-4 h-4 text-[#6d28d9]" />
                                     </div>
                                     <span className="text-gray-700">{item}</span>
                                 </motion.li>
@@ -387,7 +388,7 @@ export default function Landing(){
                         >
                             <div className="flex mb-4">
                                 {[...Array(testimonial.rating)].map((_, i) => (
-                                    <span key={i} className="text-yellow-500 text-xl">★</span>
+                                    <Star key={i} className="w-5 h-5 text-yellow-500 fill-yellow-500" />
                                 ))}
                             </div>
                             <p className="text-gray-700 mb-6 italic">"{testimonial.text}"</p>
@@ -415,14 +416,14 @@ export default function Landing(){
 
                 <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
                     {[
-                        { icon: "💻", title: "Technology", count: "2,500+ positions" },
-                        { icon: "📊", title: "Business", count: "1,800+ positions" },
-                        { icon: "🎨", title: "Design", count: "950+ positions" },
-                        { icon: "🔬", title: "Research", count: "720+ positions" },
-                        { icon: "📱", title: "Marketing", count: "1,200+ positions" },
-                        { icon: "⚖️", title: "Legal", count: "450+ positions" },
-                        { icon: "🏥", title: "Healthcare", count: "890+ positions" },
-                        { icon: "🎓", title: "Education", count: "640+ positions" }
+                        { icon: Monitor, title: "Technology", count: "2,500+ positions" },
+                        { icon: BarChart3, title: "Business", count: "1,800+ positions" },
+                        { icon: Palette, title: "Design", count: "950+ positions" },
+                        { icon: Microscope, title: "Research", count: "720+ positions" },
+                        { icon: Smartphone, title: "Marketing", count: "1,200+ positions" },
+                        { icon: Scale, title: "Legal", count: "450+ positions" },
+                        { icon: Heart, title: "Healthcare", count: "890+ positions" },
+                        { icon: GraduationCap, title: "Education", count: "640+ positions" }
                     ].map((category, index) => (
                         <motion.div
                             key={index}
@@ -433,7 +434,9 @@ export default function Landing(){
                             transition={{ delay: index * 0.05 }}
                             className="bg-white p-6 rounded-xl text-center hover:shadow-lg transition-shadow cursor-pointer group"
                         >
-                            <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{category.icon}</div>
+                            <div className="mb-3 group-hover:scale-110 transition-transform flex justify-center">
+                                <category.icon className="w-10 h-10 text-[#6d28d9]" />
+                            </div>
                             <h3 className="font-semibold text-black mb-1">{category.title}</h3>
                             <p className="text-sm text-gray-600">{category.count}</p>
                         </motion.div>

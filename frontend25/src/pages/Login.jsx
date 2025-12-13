@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { Sparkles } from 'lucide-react';
 
 const images = [
   "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg",
@@ -149,7 +150,7 @@ export default function LoginPage() {
           </div>
 
           <div className="absolute left-[-20px] top-1/2 -translate-y-1/2 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-yellow-500 text-xl">
-            ✨
+            <Sparkles className="w-6 h-6" />
           </div>
         </div>
 

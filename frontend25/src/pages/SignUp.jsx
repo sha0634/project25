@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { GraduationCap, Building2, Sparkles } from 'lucide-react';
 
 const images = [
   "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg",
@@ -101,7 +102,7 @@ export default function SignUpPage() {
                   : "bg-[#F3EDFF] text-gray-700 hover:bg-[#E9DEFF]"
               }`}
             >
-              🎓 Student
+              <GraduationCap className="w-4 h-4 inline-block mr-1" /> Student
             </button>
             <button
               type="button"
@@ -112,7 +113,7 @@ export default function SignUpPage() {
                   : "bg-[#F3EDFF] text-gray-700 hover:bg-[#E9DEFF]"
               }`}
             >
-              🏢 Company
+              <Building2 className="w-4 h-4 inline-block mr-1" /> Company
             </button>
           </div>
 
@@ -220,7 +221,7 @@ export default function SignUpPage() {
           </div>
 
           <div className="absolute left-[-20px] top-1/2 -translate-y-1/2 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-yellow-500 text-xl">
-            ✨
+            <Sparkles className="w-6 h-6" />
           </div>
         </div>
 
