@@ -48,7 +48,10 @@ exports.signup = async (req, res) => {
             email,
             password,
             userType: userType.toLowerCase(),
-            profile: profile || {}
+            profile: {
+                fullName: username, // Initialize with username
+                ...(profile || {})
+            }
         };
 
         // Create new user

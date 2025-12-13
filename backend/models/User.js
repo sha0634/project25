@@ -66,6 +66,9 @@ const userSchema = new mongoose.Schema({
         resume: {
             type: String // URL to resume file
         },
+        resumeText: {
+            type: String // Scanned text content from resume
+        },
         
         // Company-specific fields
         companyName: {
