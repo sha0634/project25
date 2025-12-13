@@ -10,6 +10,7 @@ import NotFound from './pages/NotFound'
 import StDashboard from './pages/stdashboard'
 import StProfile from './pages/stprofile'
 import CoDashboard from './pages/codashboard'
+import CoProfile from './pages/coprofile'
 
 // Protected Route Component
 function ProtectedRoute({ children }) {
@@ -40,6 +41,7 @@ function AppContent() {
         <Route path="/stdashboard" element={<ProtectedRoute><StDashboard /></ProtectedRoute>} />
         <Route path="/stprofile" element={<ProtectedRoute><StProfile /></ProtectedRoute>} />
         <Route path="/codashboard" element={<ProtectedRoute><CoDashboard /></ProtectedRoute>} />
+        <Route path="/coprofile" element={<ProtectedRoute><CoProfile /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
