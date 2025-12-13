@@ -16,15 +16,17 @@ async function parseCV(filePath) {
         console.log('========================');
         
         // Parse PDF using PDFParse class
-        const parser = new PDFParse();
-        const data = await parser.parse(dataBuffer);
-        const text = data.text;
+        const pdfParser = new PDFParse({ data: dataBuffer });
+        const result = await pdfParser.getText();
+        const text = result.text;
 
         console.log('=== PDF PARSER DEBUG ===');
         console.log('Text extracted from PDF:', text ? 'YES' : 'NO');
         console.log('Text length:', text?.length);
         console.log('Text type:', typeof text);
-        console.log('First 200 chars:', text?.substring(0, 200));
+        console.log('========================');
+        console.log('FULL PDF TEXT:');
+        console.log(text);
         console.log('========================');
 
         // Extract information

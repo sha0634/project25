@@ -1,5 +1,5 @@
 // src/StudentDashboard.jsx
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Moon, Sun, DollarSign, Target, Rocket, MapPin, Building2, Mail } from 'lucide-react';
 
@@ -131,6 +131,18 @@ export default function StudentDashboard() {
     const [applying, setApplying] = useState(false);
     const [selectedNewsletter, setSelectedNewsletter] = useState(null);
     const [showNewsletterModal, setShowNewsletterModal] = useState(false);
+    const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch internships from backend
   useEffect(() => {
@@ -279,13 +291,9 @@ export default function StudentDashboard() {
   ))}
 
   {/* PROFILE DROPDOWN */}
-  <div
-    className="relative"
-    onMouseEnter={() => setShowDropdown(true)}
-    onMouseLeave={() => setShowDropdown(false)}
-  >
+  <div className="relative" ref={dropdownRef}>
     <button
-      
+      onClick={() => setShowDropdown(!showDropdown)}
       className={`px-3 py-1.5 rounded-full transition text-xs md:text-sm
       ${
         activeTab === "profile"

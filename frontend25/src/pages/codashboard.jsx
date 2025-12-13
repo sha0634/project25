@@ -1,5 +1,5 @@
 // src/CompanyDashboard.jsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download } from 'lucide-react';
 
@@ -98,6 +98,18 @@ export default function CompanyDashboard() {
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
   const [selectedInternship, setSelectedInternship] = useState(null);
   const [posting, setPosting] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [formData, setFormData] = useState({
@@ -277,12 +289,9 @@ export default function CompanyDashboard() {
             ))}
 
             {/* PROFILE DROPDOWN */}
-            <div
-              className="relative"
-              onMouseEnter={() => setShowDropdown(true)}
-              onMouseLeave={() => setShowDropdown(false)}
-            >
+            <div className="relative" ref={dropdownRef}>
               <button
+                onClick={() => setShowDropdown(!showDropdown)}
                 className={`px-3 py-1.5 rounded-full transition text-xs md:text-sm
                 ${
                   activeTab === "profile"

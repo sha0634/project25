@@ -63,6 +63,9 @@ const userSchema = new mongoose.Schema({
         skills: [{
             type: String
         }],
+        qualifications: {
+            type: String
+        },
         resume: {
             type: String // URL to resume file
         },
