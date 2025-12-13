@@ -66,12 +66,7 @@ exports.uploadResume = async (req, res) => {
                     console.log('Skills updated:', user.profile.skills);
                 }
 
-                // Add new education entries
-                if (extractedData.education && extractedData.education.length > 0) {
-                    const existingEducation = user.profile.education || [];
-                    user.profile.education = [...existingEducation, ...extractedData.education];
-                    console.log('Education updated:', user.profile.education);
-                }
+                // Skip education updates - user wants to manage qualifications manually
 
                 // Update bio if empty
                 if (extractedData.bio && !user.profile.bio) {
@@ -291,7 +286,12 @@ exports.updateStudentProfile = async (req, res) => {
             });
         }
 
-        const { fullName, phone, location, bio, profilePicture, education, skills, resume } = req.body;
+        const { fullName, phone, location, bio, profilePicture, education, skills, resume, qualifications } = req.body;
+
+        console.log('========== UPDATE PROFILE REQUEST ==========');
+        console.log('User ID:', req.user.id);
+        console.log('Data received:', { fullName, phone, location, bio, skills: skills?.length, qualifications });
+        console.log('============================================');
 
         // Update profile fields
         if (fullName !== undefined) user.profile.fullName = fullName;
@@ -302,8 +302,17 @@ exports.updateStudentProfile = async (req, res) => {
         if (education !== undefined) user.profile.education = education;
         if (skills !== undefined) user.profile.skills = skills;
         if (resume !== undefined) user.profile.resume = resume;
+        if (qualifications !== undefined) user.profile.qualifications = qualifications;
 
         await user.save();
+
+        console.log('========== PROFILE UPDATED ==========');
+        console.log('Full Name:', user.profile.fullName);
+        console.log('Phone:', user.profile.phone);
+        console.log('Bio:', user.profile.bio);
+        console.log('Skills:', user.profile.skills);
+        console.log('Qualifications:', user.profile.qualifications);
+        console.log('=====================================');
 
         res.status(200).json({
             success: true,
