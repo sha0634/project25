@@ -68,6 +68,7 @@ export const AuthProvider = ({ children }) => {
 
             if (data.success) {
                 localStorage.setItem('token', data.token);
+                localStorage.setItem('userId', data.user._id);
                 setToken(data.token);
                 setUser(data.user);
                 // Redirect based on user type
@@ -102,6 +103,7 @@ export const AuthProvider = ({ children }) => {
 
             if (data.success) {
                 localStorage.setItem('token', data.token);
+                localStorage.setItem('userId', data.user._id);
                 setToken(data.token);
                 setUser(data.user);
                 // Redirect based on user type
@@ -124,6 +126,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('userId');
         setToken(null);
         setUser(null);
         navigate('/login');

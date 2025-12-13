@@ -39,18 +39,6 @@ export default function StudentProfile() {
           const data = await response.json();
           const profile = data.profile;
           
-          // Format education entries properly
-          let formattedQualifications = '';
-          if (profile.education && profile.education.length > 0) {
-            formattedQualifications = profile.education.map(e => {
-              const parts = [];
-              if (e.degree) parts.push(e.degree);
-              if (e.fieldOfStudy) parts.push(`in ${e.fieldOfStudy}`);
-              if (e.institution) parts.push(`from ${e.institution}`);
-              return parts.join(' ');
-            }).filter(q => q.trim()).join('\n');
-          }
-          
           console.log('Profile picture from DB:', profile.profilePicture);
           const imageUrl = profile.profilePicture ? `http://localhost:5000${profile.profilePicture}` : null;
           console.log('Constructed image URL:', imageUrl);
@@ -62,7 +50,7 @@ export default function StudentProfile() {
             bio: profile.bio || "",
             image: imageUrl,
             skills: profile.skills || [],
-            qualifications: formattedQualifications,
+            qualifications: profile.qualifications || "",
           });
 
           if (profile.resume) {
@@ -113,18 +101,19 @@ export default function StudentProfile() {
           fullName: profileData.name,
           phone: profileData.phone,
           bio: profileData.bio,
-          profilePicture: profileData.image,
           skills: profileData.skills,
-          resume: cvFile?.url || ""
+          qualifications: profileData.qualifications,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Profile saved successfully:', data);
         alert('Profile updated successfully!');
         setIsEditing(false);
       } else {
         const error = await response.json();
+        console.error('Save error:', error);
         alert(`Error: ${error.message}`);
       }
     } catch (error) {
@@ -189,10 +178,10 @@ export default function StudentProfile() {
       if (response.ok) {
         const newImageUrl = `http://localhost:5000${data.profilePicture}`;
         console.log('Image uploaded successfully. New URL:', newImageUrl);
-        setProfileData({ 
-          ...profileData, 
+        setProfileData(prev => ({ 
+          ...prev, 
           image: newImageUrl
-        });
+        }));
         alert('Profile picture uploaded successfully!');
       } else {
         const error = await response.json();
@@ -251,10 +240,9 @@ export default function StudentProfile() {
 
         // Auto-fill profile data from extracted CV information
         if (data.extractedData) {
-          const { skills, education, bio } = data.extractedData;
+          const { skills, bio } = data.extractedData;
           
           console.log('Extracted Data:', data.extractedData);
-          console.log('Education entries:', education);
           
           setProfileData(prev => ({
             ...prev,
@@ -266,45 +254,10 @@ export default function StudentProfile() {
             bio: bio && !prev.bio ? bio : prev.bio,
           }));
 
-          // Fetch updated profile to get education data
-          const profileResponse = await fetch('http://localhost:5000/api/profile/student', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            const profile = profileData.profile;
-            
-            console.log('Updated profile education:', profile.education);
-            
-            // Format education entries properly
-            let formattedQualifications = '';
-            if (profile.education && profile.education.length > 0) {
-              formattedQualifications = profile.education.map(e => {
-                const parts = [];
-                if (e.degree) parts.push(e.degree);
-                if (e.fieldOfStudy) parts.push(`in ${e.fieldOfStudy}`);
-                if (e.institution) parts.push(`from ${e.institution}`);
-                return parts.join(' ');
-              }).filter(q => q.trim()).join('\n');
-            }
-            
-            console.log('Formatted qualifications:', formattedQualifications);
-            
-            setProfileData(prevData => ({
-              ...prevData,
-              name: profile.fullName || prevData.name,
-              qualifications: formattedQualifications || prevData.qualifications,
-            }));
-          }
-
           let message = 'Resume uploaded successfully!';
-          if (skills?.length > 0 || education?.length > 0 || bio) {
+          if (skills?.length > 0 || bio) {
             message += '\n\nWe automatically extracted information from your CV:';
             if (skills?.length > 0) message += `\n• ${skills.length} skills added`;
-            if (education?.length > 0) message += `\n• ${education.length} education entries added`;
             if (bio) message += '\n• Professional summary added';
             message += '\n\nPlease review and edit as needed.';
           }

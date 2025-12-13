@@ -1,90 +1,8 @@
 // src/CompanyDashboard.jsx
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download } from 'lucide-react';
-
-const POSTED_INTERNSHIPS = [
-  {
-    id: 1,
-    title: "Software Engineering Intern",
-    applicants: 45,
-    status: "Active",
-    postedDate: "2024-12-01",
-  },
-  {
-    id: 2,
-    title: "Data Analysis Intern",
-    applicants: 32,
-    status: "Active",
-    postedDate: "2024-11-28",
-  },
-  {
-    id: 3,
-    title: "Marketing Intern",
-    applicants: 28,
-    status: "Closed",
-    postedDate: "2024-11-15",
-  },
-  {
-    id: 4,
-    title: "Product Management Intern",
-    applicants: 51,
-    status: "Active",
-    postedDate: "2024-12-05",
-  },
-];
-
-const APPLICANTS = [
-  {
-    id: 1,
-    name: "Rahul Sharma",
-    position: "Software Engineering Intern",
-    status: "Under Review",
-    appliedDate: "2024-12-08",
-  },
-  {
-    id: 2,
-    name: "Priya Patel",
-    position: "Data Analysis Intern",
-    status: "Shortlisted",
-    appliedDate: "2024-12-07",
-  },
-  {
-    id: 3,
-    name: "Amit Kumar",
-    position: "Software Engineering Intern",
-    status: "Interview Scheduled",
-    appliedDate: "2024-12-06",
-  },
-  {
-    id: 4,
-    name: "Sneha Reddy",
-    position: "Marketing Intern",
-    status: "Under Review",
-    appliedDate: "2024-12-05",
-  },
-];
-
-const NEWSLETTERS = [
-  {
-    id: 1,
-    title: "Summer Internship Program 2025",
-    published: "2024-12-01",
-    views: 234,
-  },
-  {
-    id: 2,
-    title: "Tech Stack We Use",
-    published: "2024-11-25",
-    views: 189,
-  },
-  {
-    id: 3,
-    title: "Culture & Work Environment",
-    published: "2024-11-20",
-    views: 312,
-  },
-];
+import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download, Bell, Mail, X } from 'lucide-react';
+import io from 'socket.io-client';
 
 export default function CompanyDashboard() {
   const [activeTab, setActiveTab] = useState("internships"); // internships | applicants | newsletters | profile | about
@@ -93,8 +11,11 @@ export default function CompanyDashboard() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [postedInternships, setPostedInternships] = useState([]);
+  const [newsletters, setNewsletters] = useState([]);
+  const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPostForm, setShowPostForm] = useState(false);
+  const [editingInternship, setEditingInternship] = useState(null);
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
   const [selectedInternship, setSelectedInternship] = useState(null);
   const [posting, setPosting] = useState(false);
@@ -112,6 +33,11 @@ export default function CompanyDashboard() {
   }, []);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const socketRef = useRef(null);
+  const notificationRef = useRef(null);
   const [formData, setFormData] = useState({
     title: "",
     company: "",
@@ -148,6 +74,173 @@ export default function CompanyDashboard() {
     }
   };
 
+  // Fetch all applicants across company's internships
+  const fetchApplicants = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/internships/company/my-internships', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Extract all applicants from all internships
+        const allApplicants = [];
+        data.internships.forEach(internship => {
+          if (internship.applicants && internship.applicants.length > 0) {
+            internship.applicants.forEach(applicant => {
+              allApplicants.push({
+                ...applicant,
+                internshipTitle: internship.title,
+                internshipId: internship._id
+              });
+            });
+          }
+        });
+        
+        setApplicants(allApplicants);
+      }
+    } catch (error) {
+      console.error('Error fetching applicants:', error);
+    }
+  };
+
+  // Fetch newsletters
+  const fetchNewsletters = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/newsletters/company/my-newsletters', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNewsletters(data.newsletters);
+      }
+    } catch (error) {
+      console.error('Error fetching newsletters:', error);
+    }
+  };
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  // Mark notification as read
+  const markAsRead = async (notificationId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      setNotifications(prev => 
+        prev.map(n => n._id === notificationId ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Setup Socket.io and fetch initial data
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('token');
+    
+    console.log('Socket.io setup - userId:', userId, 'token:', token ? 'exists' : 'missing');
+    
+    if (userId && token) {
+      // Connect to Socket.io server
+      socketRef.current = io('http://localhost:5000');
+      
+      socketRef.current.on('connect', () => {
+        console.log('Socket.io connected:', socketRef.current.id);
+        // Register user after connection is established
+        socketRef.current.emit('register', userId);
+        console.log('Registered userId with socket:', userId);
+      });
+      
+      // Listen for new notifications
+      socketRef.current.on('newNotification', (notification) => {
+        console.log('New notification received:', notification);
+        setNotifications(prev => [notification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+        
+        // Show browser notification if permitted
+        if (Notification.permission === 'granted') {
+          new Notification(notification.title, {
+            body: notification.message,
+            icon: '/logo.png'
+          });
+        }
+      });
+
+      socketRef.current.on('disconnect', () => {
+        console.log('Socket.io disconnected');
+      });
+
+      socketRef.current.on('connect_error', (error) => {
+        console.error('Socket.io connection error:', error);
+      });
+
+      // Fetch initial notifications
+      fetchNotifications();
+      fetchInternships();
+      fetchNewsletters();
+      fetchApplicants();
+    } else {
+      console.warn('Cannot setup Socket.io: userId or token missing');
+    }
+
+    // Request notification permission
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      if (socketRef.current) {
+        console.log('Disconnecting socket');
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // Close notification dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Fetch on mount
   useState(() => {
     fetchInternships();
@@ -169,8 +262,14 @@ export default function CompanyDashboard() {
       const token = localStorage.getItem('token');
       const skillsArray = formData.skills.split(',').map(s => s.trim()).filter(s => s);
       
-      const response = await fetch('http://localhost:5000/api/internships', {
-        method: 'POST',
+      const url = editingInternship 
+        ? `http://localhost:5000/api/internships/${editingInternship._id}`
+        : 'http://localhost:5000/api/internships';
+      
+      const method = editingInternship ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -182,8 +281,10 @@ export default function CompanyDashboard() {
       });
 
       if (response.ok) {
-        alert('Internship posted successfully!');
+        alert(editingInternship ? 'Internship updated successfully!' : 'Internship posted successfully!');
+        fetchInternships();
         setShowPostForm(false);
+        setEditingInternship(null);
         setFormData({
           title: "",
           company: "",
@@ -214,6 +315,23 @@ export default function CompanyDashboard() {
     setShowApplicantsModal(true);
   };
 
+  const handleEditInternship = (internship) => {
+    setEditingInternship(internship);
+    setFormData({
+      title: internship.title,
+      company: internship.company,
+      location: internship.location,
+      type: internship.type,
+      duration: internship.duration,
+      stipend: internship.stipend,
+      description: internship.description,
+      requirements: internship.requirements || "",
+      skills: internship.skills?.join(', ') || "",
+      applicationDeadline: internship.applicationDeadline ? new Date(internship.applicationDeadline).toISOString().split('T')[0] : ""
+    });
+    setShowPostForm(true);
+  };
+
   const handleViewProfile = (applicant) => {
     setSelectedApplicant(applicant);
     setShowProfileModal(true);
@@ -221,12 +339,12 @@ export default function CompanyDashboard() {
 
   const filteredApplicants = useMemo(
     () =>
-      APPLICANTS.filter(
+      applicants.filter(
         (a) =>
-          a.name.toLowerCase().includes(lowercaseSearch) ||
-          a.position.toLowerCase().includes(lowercaseSearch)
+          (a.studentId?.profile?.fullName || a.studentId?.username || '').toLowerCase().includes(lowercaseSearch) ||
+          a.internshipTitle.toLowerCase().includes(lowercaseSearch)
       ),
-    [lowercaseSearch]
+    [lowercaseSearch, applicants]
   );
 
   const handleTabChange = (tab) => {
@@ -292,7 +410,7 @@ export default function CompanyDashboard() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className={`px-3 py-1.5 rounded-full transition text-xs md:text-sm
+                className={`relative px-3 py-1.5 rounded-full transition text-xs md:text-sm
                 ${
                   activeTab === "profile"
                     ? "bg-[#443097] text-white"
@@ -300,6 +418,9 @@ export default function CompanyDashboard() {
                 }`}
               >
                 Profile
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+                )}
               </button>
 
               {showDropdown && (
@@ -513,7 +634,10 @@ export default function CompanyDashboard() {
                     >
                       View
                     </button>
-                    <button className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                    <button 
+                      onClick={() => handleEditInternship(internship)}
+                      className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700"
+                    >
                       Edit
                     </button>
                   </div>
@@ -550,44 +674,62 @@ export default function CompanyDashboard() {
 
             {/* APPLICANTS LIST */}
             <div className="space-y-3">
-              {(search.trim() === "" ? APPLICANTS : filteredApplicants).map((applicant) => (
-                <article
-                  key={applicant.id}
-                  className={`rounded-xl border p-4 shadow-sm ${cardTheme} flex items-center justify-between`}
-                >
-                  <div>
-                    <h2 className="text-sm font-semibold md:text-base">
-                      {applicant.name}
-                    </h2>
-                    <p className="text-xs text-[#443097] md:text-sm">
-                      {applicant.position}
-                    </p>
-                    <p
-                      className={`mt-1 text-xs ${
-                        theme === "light" ? "text-slate-600" : "text-slate-400"
-                      }`}
-                    >
-                      Applied: {applicant.appliedDate}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        applicant.status === "Shortlisted"
-                          ? "bg-blue-100 text-blue-700"
-                          : applicant.status === "Interview Scheduled"
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {applicant.status}
-                    </span>
-                    <button className="bg-[#443097] text-white px-4 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4]">
-                      View Profile
-                    </button>
-                  </div>
-                </article>
-              ))}
+              {applicants.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                  <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>No applicants yet. Post internships to receive applications!</p>
+                </div>
+              ) : (
+                (search.trim() === "" ? applicants : filteredApplicants).map((applicant) => (
+                  <article
+                    key={`${applicant.studentId?._id}-${applicant.internshipId}`}
+                    className={`rounded-xl border p-4 shadow-sm ${cardTheme} flex items-center justify-between`}
+                  >
+                    <div className="flex-1">
+                      <h2 className="text-sm font-semibold md:text-base">
+                        {applicant.studentId?.profile?.fullName || applicant.studentId?.username || 'Unknown'}
+                      </h2>
+                      <p className="text-xs text-[#443097] md:text-sm">
+                        Applied for: {applicant.internshipTitle}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs ${
+                          theme === "light" ? "text-slate-600" : "text-slate-400"
+                        }`}
+                      >
+                        Applied: {new Date(applicant.appliedAt).toLocaleDateString()}
+                      </p>
+                      {applicant.studentId?.email && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          📧 {applicant.studentId.email}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          applicant.status === "Shortlisted"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                            : applicant.status === "Accepted"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                            : applicant.status === "Rejected"
+                            ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                        }`}
+                      >
+                        {applicant.status}
+                      </span>
+                      <button 
+                        onClick={() => handleViewProfile(applicant)}
+                        className="bg-[#443097] text-white px-4 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4] flex items-center gap-1"
+                      >
+                        <User className="w-3 h-3" />
+                        View Profile
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
           </section>
         )}
@@ -603,36 +745,52 @@ export default function CompanyDashboard() {
               </button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {NEWSLETTERS.map((newsletter) => (
-                <article
-                  key={newsletter.id}
-                  className={`rounded-2xl border p-4 shadow-sm ${cardTheme}`}
-                >
-                  <h2 className="mb-1 text-sm font-semibold md:text-base">
-                    {newsletter.title}
-                  </h2>
-                  <p
-                    className={`text-xs md:text-sm ${
-                      theme === "light" ? "text-slate-700" : "text-slate-500"
-                    }`}
+            {newsletters.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <Newspaper className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p>No newsletters created yet. Create your first newsletter to keep students informed!</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {newsletters.map((newsletter) => (
+                  <article
+                    key={newsletter._id}
+                    className={`rounded-2xl border p-4 shadow-sm ${cardTheme}`}
                   >
-                    Published: {newsletter.published}
-                  </p>
-                  <p className="mt-1 text-xs text-[#443097]">
-                    {newsletter.views} views
-                  </p>
-                  <div className="mt-4 flex gap-2">
-                    <button className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4]">
-                      View
-                    </button>
-                    <button className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
-                      Edit
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
+                    <h2 className="mb-1 text-sm font-semibold md:text-base">
+                      {newsletter.title}
+                    </h2>
+                    <p
+                      className={`text-xs md:text-sm ${
+                        theme === "light" ? "text-slate-700" : "text-slate-500"
+                      }`}
+                    >
+                      Published: {new Date(newsletter.createdAt).toLocaleDateString()}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
+                      {newsletter.summary}
+                    </p>
+                    <div className="mt-1">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        newsletter.status === 'Published'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                      }`}>
+                        {newsletter.status}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4]">
+                        View
+                      </button>
+                      <button className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                        Edit
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -720,14 +878,20 @@ export default function CompanyDashboard() {
 
       {/* Post New Internship Modal */}
       {showPostForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowPostForm(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => {
+          setShowPostForm(false);
+          setEditingInternship(null);
+        }}>
           <div 
             className={`max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${cardTheme} p-6`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Post New Internship</h2>
-              <button onClick={() => setShowPostForm(false)} className="text-2xl font-bold text-slate-500 hover:text-slate-700">×</button>
+              <h2 className="text-2xl font-bold">{editingInternship ? 'Edit Internship' : 'Post New Internship'}</h2>
+              <button onClick={() => {
+                setShowPostForm(false);
+                setEditingInternship(null);
+              }} className="text-2xl font-bold text-slate-500 hover:text-slate-700">×</button>
             </div>
 
             <form onSubmit={handlePostInternship} className="space-y-4">
@@ -858,11 +1022,14 @@ export default function CompanyDashboard() {
                   disabled={posting}
                   className="flex-1 bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
                 >
-                  {posting ? "Posting..." : "Post Internship"}
+                  {posting ? (editingInternship ? "Updating..." : "Posting...") : (editingInternship ? "Update Internship" : "Post Internship")}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowPostForm(false)}
+                  onClick={() => {
+                    setShowPostForm(false);
+                    setEditingInternship(null);
+                  }}
                   className={`px-6 py-3 rounded-lg font-semibold border ${theme === "light" ? "border-slate-300 hover:bg-slate-100" : "border-slate-600 hover:bg-slate-700"}`}
                 >
                   Cancel
@@ -1103,6 +1270,144 @@ export default function CompanyDashboard() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* APPLICANT PROFILE MODAL */}
+      {showProfileModal && selectedApplicant && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${theme === "light" ? "bg-white" : "bg-slate-800"}`}>
+            <div className="sticky top-0 bg-[#443097] text-white p-6 rounded-t-2xl">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    {selectedApplicant.studentId?.profile?.fullName || selectedApplicant.studentId?.username}
+                  </h2>
+                  <p className="text-sm text-indigo-200 mt-1">
+                    Applied for: {selectedApplicant.internshipTitle}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="text-white hover:bg-white/20 rounded-full p-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-[#443097]" />
+                  Contact Information
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Email:</strong> {selectedApplicant.studentId?.email || 'N/A'}</p>
+                  <p><strong>Phone:</strong> {selectedApplicant.studentId?.profile?.phone || 'N/A'}</p>
+                  <p><strong>Location:</strong> {selectedApplicant.studentId?.profile?.location || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Application Status */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Application Status</h3>
+                <div className="flex items-center gap-3">
+                  <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                    selectedApplicant.status === "Shortlisted"
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                      : selectedApplicant.status === "Accepted"
+                      ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                      : selectedApplicant.status === "Rejected"
+                      ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                      : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                  }`}>
+                    {selectedApplicant.status}
+                  </span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                    Applied on {new Date(selectedApplicant.appliedAt).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bio */}
+              {selectedApplicant.studentId?.profile?.bio && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">About</h3>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    {selectedApplicant.studentId.profile.bio}
+                  </p>
+                </div>
+              )}
+
+              {/* Skills */}
+              {selectedApplicant.studentId?.profile?.skills && selectedApplicant.studentId.profile.skills.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Skills</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedApplicant.studentId.profile.skills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full text-sm"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Education/Qualifications */}
+              {selectedApplicant.studentId?.profile?.qualifications && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Qualifications</h3>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">
+                    {selectedApplicant.studentId.profile.qualifications}
+                  </p>
+                </div>
+              )}
+
+              {/* Resume Download */}
+              {selectedApplicant.studentId?.profile?.resume && (
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-3">Resume / CV</h3>
+                  <a
+                    href={`http://localhost:5000${selectedApplicant.studentId.profile.resume}`}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#443097] text-white rounded-lg hover:bg-[#36217c] transition"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download Resume
+                  </a>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Click to download the candidate's resume in PDF format
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-6 border-t">
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="flex-1 px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  Close
+                </button>
+                <button
+                  className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                >
+                  Shortlist Candidate
+                </button>
+              </div>
             </div>
           </div>
         </div>
