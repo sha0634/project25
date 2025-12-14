@@ -132,6 +132,11 @@ export default function StudentDashboard() {
     const [selectedNewsletter, setSelectedNewsletter] = useState(null);
     const [showNewsletterModal, setShowNewsletterModal] = useState(false);
     const dropdownRef = useRef(null);
+    const [courses, setCourses] = useState([]);
+    const [selectedCourse, setSelectedCourse] = useState(null);
+    const [showCourseModal, setShowCourseModal] = useState(false);
+    const [enrolling, setEnrolling] = useState(false);
+
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -161,6 +166,14 @@ export default function StudentDashboard() {
           const newslettersData = await newslettersRes.json();
           setNewsletters(newslettersData.newsletters);
         }
+
+        // Fetch courses
+    const coursesRes = await fetch("http://localhost:5000/api/courses");
+      if (coursesRes.ok) {
+        const coursesData = await coursesRes.json();
+        setCourses(coursesData.courses);
+      }
+
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -249,6 +262,41 @@ export default function StudentDashboard() {
   const cardTheme =
     theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200";
 
+    const handleEnroll = async () => {
+  if (!selectedCourse) return;
+
+  setEnrolling(true);
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(
+      `http://localhost:5000/api/courses/${selectedCourse._id}/enroll`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    if (res.ok) {
+      alert("Successfully enrolled in the course!");
+      setShowCourseModal(false);
+    } else {
+      alert(data.message || "Enrollment failed");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Enrollment failed");
+  } finally {
+    setEnrolling(false);
+  }
+};
+
+
   return (
     <div className={`${rootTheme} min-h-screen `}>
       {/* NAVBAR */}
@@ -275,7 +323,8 @@ export default function StudentDashboard() {
          <nav className="hidden md:flex items-center gap-2 md:gap-4 text-sm md:text-base">
 
   {/* Other Tabs */}
-  {["internships", "newsletters", "about"].map((tab) => (
+ {["internships", "courses", "newsletters", "about"].map((tab) => (
+
     <button
       key={tab}
       onClick={() => handleTabChange(tab)}
@@ -384,7 +433,8 @@ export default function StudentDashboard() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-slate-200 dark:border-slate-700">
             <nav className="px-4 py-3 space-y-2">
-              {["internships", "newsletters", "about"].map((tab) => (
+              {["internships", "courses", "newsletters", "about"].map((tab) => (
+
                 <button
                   key={tab}
                   onClick={() => {
@@ -608,6 +658,59 @@ export default function StudentDashboard() {
             )}
           </section>
         )}
+
+
+        {activeTab === "courses" && (
+  <section>
+    <div className="mb-4 flex items-center justify-between">
+      <h1 className="text-xl font-semibold md:text-2xl">
+        Courses Offered by Companies
+      </h1>
+    </div>
+
+    {loading ? (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#443097]"></div>
+        <span className="ml-3 text-lg">Loading courses...</span>
+      </div>
+    ) : courses.length === 0 ? (
+      <p className={`text-sm ${theme === "light" ? "text-slate-700" : "text-slate-500"}`}>
+        No courses available at the moment.
+      </p>
+    ) : (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {courses.map((course) => (
+          <article
+            key={course._id}
+            className={`rounded-2xl border p-4 shadow-sm ${cardTheme}`}
+          >
+            <h2 className="text-sm font-semibold md:text-base">
+              {course.title}
+            </h2>
+
+            <p className="text-xs font-medium text-[#443097]">
+              {course.company}
+            </p>
+
+            <p className={`mt-2 text-xs ${theme === "light" ? "text-slate-700" : "text-slate-500"}`}>
+              {course.level} · {course.duration}
+            </p>
+
+            <button
+              onClick={() => {
+                setSelectedCourse(course);
+                setShowCourseModal(true);
+              }}
+              className="mt-4 w-full rounded-lg bg-[#443097] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#36217c]"
+            >
+              View & Enroll
+            </button>
+          </article>
+        ))}
+      </div>
+    )}
+  </section>
+)}
 
         {activeTab === "newsletters" && (
           <section>
@@ -909,6 +1012,55 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
+
+
+      {showCourseModal && selectedCourse && (
+  <div
+    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+    onClick={() => setShowCourseModal(false)}
+  >
+    <div
+      className={`max-w-2xl w-full rounded-2xl shadow-2xl ${cardTheme} p-6`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={() => setShowCourseModal(false)}
+        className="float-right text-2xl font-bold text-slate-500"
+      >
+        ×
+      </button>
+
+      <h2 className="text-2xl font-bold mb-2">
+        {selectedCourse.title}
+      </h2>
+
+      <p className="text-[#443097] font-semibold mb-3">
+        {selectedCourse.company}
+      </p>
+
+      <p className={`text-sm mb-4 ${theme === "light" ? "text-slate-700" : "text-slate-300"}`}>
+        {selectedCourse.description}
+      </p>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        <span className="px-3 py-1 rounded-full text-xs bg-slate-200 dark:bg-slate-700">
+          {selectedCourse.level}
+        </span>
+        <span className="px-3 py-1 rounded-full text-xs bg-slate-200 dark:bg-slate-700">
+          {selectedCourse.duration}
+        </span>
+      </div>
+
+      <button
+        onClick={handleEnroll}
+        disabled={enrolling}
+        className="w-full bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
+      >
+        {enrolling ? "Enrolling..." : "Enroll Now"}
+      </button>
+    </div>
+  </div>
+)}
 
       {/* Newsletter Detail Modal */}
       {showNewsletterModal && selectedNewsletter && (
