@@ -6,117 +6,7 @@ import { Link } from "react-router-dom";
 import { Moon, Sun, DollarSign, Target, Rocket, MapPin, Building2, Mail, Users, Clock } from 'lucide-react'; // Added Users and Clock icons
 import logo from '../assets/logo.png';
 
-const NEWSLETTERS = [
-  {
-    id: 1,
-    title: "Google Summer Internship Updates",
-    company: "Google",
-    summary: "Latest batch timelines, roles, and eligibility.",
-    date: "December 10, 2025",
-    content: `
-      <h3>Exciting News for Aspiring Googlers!</h3>
-      <p>We're thrilled to announce our Summer 2026 Internship Program is now open for applications. This year, we're expanding our program to include more diverse roles across engineering, product, design, and business teams.</p>
-      
-      <h4>Key Highlights:</h4>
-      <ul>
-        <li><strong>Duration:</strong> 10-12 weeks (May - August 2026)</li>
-        <li><strong>Locations:</strong> Bangalore, Hyderabad, Mumbai, and Gurgaon</li>
-        <li><strong>Stipend:</strong> Competitive compensation package</li>
-        <li><strong>Application Deadline:</strong> January 15, 2026</li>
-      </ul>
-      
-      <h4>Available Roles:</h4>
-      <ul>
-        <li>Software Engineering Intern</li>
-        <li>Product Management Intern</li>
-        <li>UX Design Intern</li>
-        <li>Data Science Intern</li>
-        <li>Business Analyst Intern</li>
-      </ul>
-      
-      <h4>Eligibility:</h4>
-      <p>Students pursuing Bachelor's or Master's degrees in Computer Science, Engineering, Business, or related fields. Strong problem-solving skills and passion for technology are essential.</p>
-      
-      <p><strong>Ready to apply?</strong> Visit our careers portal and submit your application along with your resume and cover letter. Selected candidates will be contacted for technical and behavioral interviews.</p>
-    `
-  },
-  {
-    id: 2,
-    title: "Tech Innovations Hiring Drive",
-    company: "Tech Innovations",
-    summary: "Marketing + Product roles for freshers.",
-    date: "December 8, 2025",
-    content: `
-      <h3>Join Tech Innovations - We're Hiring!</h3>
-      <p>Tech Innovations is conducting a campus hiring drive for passionate freshers looking to kickstart their careers in Marketing and Product Management.</p>
-      
-      <h4>Why Join Us?</h4>
-      <ul>
-        <li>Work on cutting-edge SaaS products</li>
-        <li>Mentorship from industry leaders</li>
-        <li>Flexible work culture (Hybrid model)</li>
-        <li>Fast-track career growth opportunities</li>
-      </ul>
-      
-      <h4>Open Positions:</h4>
-      <p><strong>1. Marketing Intern</strong></p>
-      <ul>
-        <li>Content creation and social media management</li>
-        <li>Campaign planning and execution</li>
-        <li>Market research and competitor analysis</li>
-        <li>Stipend: ₹20,000/month</li>
-      </ul>
-      
-      <p><strong>2. Product Management Intern</strong></p>
-      <ul>
-        <li>Feature ideation and roadmap planning</li>
-        <li>User research and feedback analysis</li>
-        <li>Cross-functional team collaboration</li>
-        <li>Stipend: ₹35,000/month</li>
-      </ul>
-      
-      <h4>Selection Process:</h4>
-      <p>Online Assessment → Group Discussion → HR Interview → Final Offer</p>
-      
-      <p>Applications close on December 31, 2025. Don't miss this opportunity!</p>
-    `
-  },
-  {
-    id: 3,
-    title: "Summit Consulting Data Week",
-    company: "Summit Consulting",
-    summary: "Workshops and internship program for analysts.",
-    date: "December 5, 2025",
-    content: `
-      <h3>Summit Consulting Data Week 2026</h3>
-      <p>We're excited to invite students to our annual Data Week - a series of workshops, masterclasses, and networking sessions focused on data analytics and consulting.</p>
-      
-      <h4>Event Schedule:</h4>
-      <p><strong>Day 1 (Jan 15):</strong> Introduction to Data Analytics in Consulting</p>
-      <p><strong>Day 2 (Jan 16):</strong> SQL and Python for Business Analysis</p>
-      <p><strong>Day 3 (Jan 17):</strong> Data Visualization with Tableau & Power BI</p>
-      <p><strong>Day 4 (Jan 18):</strong> Case Study Competition</p>
-      <p><strong>Day 5 (Jan 19):</strong> Networking & Internship Offers</p>
-      
-      <h4>Internship Opportunities:</h4>
-      <p>Top performers in the case study competition will receive pre-placement offers for our 6-month Data Analyst Internship Program.</p>
-      
-      <h4>Internship Benefits:</h4>
-      <ul>
-        <li>Stipend: ₹25,000/month</li>
-        <li>Remote work option available</li>
-        <li>Real client projects exposure</li>
-        <li>Certification upon completion</li>
-        <li>PPO (Pre-Placement Offer) for high performers</li>
-      </ul>
-      
-      <h4>Registration:</h4>
-      <p>Limited seats available! Register by December 20, 2025. Participation is free for all registered students.</p>
-      
-      <p><em>This is a great opportunity to learn, network, and secure your first internship in the consulting industry!</em></p>
-    `
-  },
-];
+// Newsletters will be fetched from the backend; start with empty list
 
 
 
@@ -127,8 +17,8 @@ export default function StudentDashboard() {
     const [showDropdown, setShowDropdown] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [internships, setInternships] = useState([]);
-    // Using mock data for newsletters since the fetch seems to be getting mock data or failing
-    const [newsletters, setNewsletters] = useState(NEWSLETTERS); 
+	// Newsletters fetched from backend
+	const [newsletters, setNewsletters] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedInternship, setSelectedInternship] = useState(null);
     const [showModal, setShowModal] = useState(false);
@@ -171,12 +61,16 @@ export default function StudentDashboard() {
           setInternships(internshipsData.internships);
         }
 
-        // Fetch newsletters (commented out fetching due to using mock data above)
-        // const newslettersRes = await fetch('http://localhost:5000/api/newsletters');
-        // if (newslettersRes.ok) {
-        //   const newslettersData = await newslettersRes.json();
-        //   setNewsletters(newslettersData.newsletters);
-        // }
+			// Fetch newsletters from backend (published only)
+			try {
+				const newslettersRes = await fetch('http://localhost:5000/api/newsletters');
+				if (newslettersRes.ok) {
+					const newslettersData = await newslettersRes.json();
+					setNewsletters(newslettersData.newsletters || []);
+				}
+			} catch (err) {
+				console.error('Error fetching newsletters:', err);
+			}
 
         // Fetch courses (Mocked courses are set above, replace with API call)
        // const coursesRes = await fetch("http://localhost:5000/api/courses");
@@ -1007,8 +901,28 @@ export default function StudentDashboard() {
     </div>
   </div>
 )}
-      {/* Newsletter Detail Modal (omitted for brevity) */}
-      {/* ... */}
+			{/* Newsletter Detail Modal */}
+			{showNewsletterModal && selectedNewsletter && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowNewsletterModal(false)}>
+					<div className={`max-w-3xl w-full rounded-xl p-6 ${cardTheme}`} onClick={(e) => e.stopPropagation()}>
+						<div className="flex items-start justify-between gap-4">
+							<div>
+								<h2 className="text-2xl font-semibold">{selectedNewsletter.title}</h2>
+								<p className="text-sm font-medium text-[#443097]">
+									{selectedNewsletter.company} · {selectedNewsletter.date ? new Date(selectedNewsletter.date).toLocaleDateString() : (selectedNewsletter.createdAt ? new Date(selectedNewsletter.createdAt).toLocaleDateString() : '')}
+								</p>
+							</div>
+							<button onClick={() => setShowNewsletterModal(false)} className="text-3xl font-bold text-slate-500 hover:text-slate-700">×</button>
+						</div>
+
+						<div className="mt-4 prose max-w-none text-sm md:text-base" dangerouslySetInnerHTML={{ __html: selectedNewsletter.content || selectedNewsletter.summary || '' }} />
+
+						<div className="mt-6 flex justify-end">
+							<button onClick={() => setShowNewsletterModal(false)} className="px-4 py-2 rounded-lg border">Close</button>
+						</div>
+					</div>
+				</div>
+			)}
     </div>
   );
 }
