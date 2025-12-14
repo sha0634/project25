@@ -64,6 +64,9 @@ export default function CompanyDashboard() {
   const [nwContent, setNwContent] = useState('');
   const [nwDate, setNwDate] = useState('');
   const [creatingNewsletter, setCreatingNewsletter] = useState(false);
+  const [editingNewsletterId, setEditingNewsletterId] = useState(null);
+  const [showViewNewsletter, setShowViewNewsletter] = useState(false);
+  const [viewNewsletter, setViewNewsletter] = useState(null);
   const { user } = useAuth();
 
   const lowercaseSearch = search.toLowerCase();
@@ -806,10 +809,17 @@ export default function CompanyDashboard() {
                       </span>
                     </div>
                     <div className="mt-4 flex gap-2">
-                      <button className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4]">
+                      <button onClick={() => { setViewNewsletter(newsletter); setShowViewNewsletter(true); }} className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4]">
                         View
                       </button>
-                      <button className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                      <button onClick={() => {
+                        setEditingNewsletterId(newsletter._id);
+                        setNwTitle(newsletter.title || '');
+                        setNwSummary(newsletter.summary || '');
+                        setNwContent(newsletter.content || '');
+                        setNwDate(newsletter.date ? new Date(newsletter.date).toISOString().split('T')[0] : '');
+                        setShowCreateNewsletter(true);
+                      }} className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
                         Edit
                       </button>
                     </div>
@@ -1002,11 +1012,11 @@ export default function CompanyDashboard() {
 
       {/* Create Newsletter Modal */}
       {showCreateNewsletter && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowCreateNewsletter(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => { setShowCreateNewsletter(false); setEditingNewsletterId(null); }}>
           <div className={`w-full max-w-2xl rounded-xl p-6 ${cardTheme} shadow-lg`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Create Newsletter</h3>
-              <button onClick={() => setShowCreateNewsletter(false)} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><X /></button>
+              <h3 className="text-lg font-semibold">{editingNewsletterId ? 'Edit Newsletter' : 'Create Newsletter'}</h3>
+              <button onClick={() => { setShowCreateNewsletter(false); setEditingNewsletterId(null); }} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><X /></button>
             </div>
 
             <form onSubmit={async (e) => {
@@ -1014,27 +1024,49 @@ export default function CompanyDashboard() {
               setCreatingNewsletter(true);
               try {
                 const token = localStorage.getItem('token');
-                const resp = await fetch('http://localhost:5000/api/newsletters', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                  },
-                  body: JSON.stringify({ title: nwTitle, company: (user?.profile?.companyName || user?.profile?.fullName || user?.username), summary: nwSummary, content: nwContent, date: nwDate })
-                });
-
-                const data = await resp.json();
-                if (resp.ok) {
-                  alert('Newsletter created');
-                  setShowCreateNewsletter(false);
-                  setNwTitle(''); setNwSummary(''); setNwContent(''); setNwDate('');
-                  fetchNewsletters();
+                if (editingNewsletterId) {
+                  // Update
+                  const resp = await fetch(`http://localhost:5000/api/newsletters/${editingNewsletterId}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ title: nwTitle, summary: nwSummary, content: nwContent, date: nwDate })
+                  });
+                  const data = await resp.json();
+                  if (resp.ok) {
+                    alert('Newsletter updated');
+                    setShowCreateNewsletter(false);
+                    setEditingNewsletterId(null);
+                    setNwTitle(''); setNwSummary(''); setNwContent(''); setNwDate('');
+                    fetchNewsletters();
+                  } else {
+                    alert(data.message || 'Failed to update newsletter');
+                  }
                 } else {
-                  alert(data.message || 'Failed to create newsletter');
+                  // Create
+                  const resp = await fetch('http://localhost:5000/api/newsletters', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ title: nwTitle, company: (user?.profile?.companyName || user?.profile?.fullName || user?.username), summary: nwSummary, content: nwContent, date: nwDate })
+                  });
+                  const data = await resp.json();
+                  if (resp.ok) {
+                    alert('Newsletter created');
+                    setShowCreateNewsletter(false);
+                    setNwTitle(''); setNwSummary(''); setNwContent(''); setNwDate('');
+                    fetchNewsletters();
+                  } else {
+                    alert(data.message || 'Failed to create newsletter');
+                  }
                 }
               } catch (err) {
-                console.error('Create newsletter error:', err);
-                alert('Failed to create newsletter');
+                console.error('Create/update newsletter error:', err);
+                alert('Failed to save newsletter');
               } finally {
                 setCreatingNewsletter(false);
               }
@@ -1057,10 +1089,29 @@ export default function CompanyDashboard() {
               </div>
 
               <div className="flex gap-2">
-                <button disabled={creatingNewsletter} type="submit" className="px-4 py-2 rounded bg-[#443097] text-white">{creatingNewsletter ? 'Creating...' : 'Create'}</button>
-                <button type="button" onClick={() => setShowCreateNewsletter(false)} className="px-4 py-2 rounded border">Cancel</button>
+                <button disabled={creatingNewsletter} type="submit" className="px-4 py-2 rounded bg-[#443097] text-white">{creatingNewsletter ? (editingNewsletterId ? 'Updating...' : 'Saving...') : (editingNewsletterId ? 'Update' : 'Create')}</button>
+                <button type="button" onClick={() => { setShowCreateNewsletter(false); setEditingNewsletterId(null); }} className="px-4 py-2 rounded border">Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Newsletter Modal */}
+      {showViewNewsletter && viewNewsletter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => { setShowViewNewsletter(false); setViewNewsletter(null); }}>
+          <div className={`w-full max-w-2xl rounded-xl p-6 ${cardTheme} shadow-lg`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xl font-semibold">{viewNewsletter.title}</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{viewNewsletter.company} • {new Date(viewNewsletter.createdAt || viewNewsletter.date).toLocaleDateString()}</p>
+              </div>
+              <div className="ml-auto">
+                <button onClick={() => { setShowViewNewsletter(false); setViewNewsletter(null); }} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><X /></button>
+              </div>
+            </div>
+
+            <div className="prose max-w-full dark:prose-invert" dangerouslySetInnerHTML={{ __html: viewNewsletter.content }} />
           </div>
         </div>
       )}
