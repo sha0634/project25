@@ -6,7 +6,8 @@ const {
     createNewsletter,
     updateNewsletter,
     deleteNewsletter,
-    getCompanyNewsletters
+    getCompanyNewsletters,
+    generateNewsletterFromPrompt
 } = require('../controllers/newsletterController');
 const { protect } = require('../middleware/auth');
 
@@ -16,6 +17,7 @@ router.get('/:id', getNewsletter);
 
 // Protected routes
 router.post('/', protect, createNewsletter);
+router.post('/generate', protect, generateNewsletterFromPrompt);
 router.put('/:id', protect, updateNewsletter);
 router.delete('/:id', protect, deleteNewsletter);
 
