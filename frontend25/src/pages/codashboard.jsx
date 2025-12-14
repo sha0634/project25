@@ -1,13 +1,15 @@
 // src/CompanyDashboard.jsx
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download, Bell, Mail, X } from 'lucide-react';
+import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download, Bell, Mail, X, Upload } from 'lucide-react';
 import io from 'socket.io-client';
 import logo from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
 
+
+
 export default function CompanyDashboard() {
-  const [activeTab, setActiveTab] = useState("internships"); // internships | applicants | newsletters | profile | about
+  const [activeTab, setActiveTab] = useState("internships"); // internships | courses | applicants | newsletters | profile | about
   const [theme, setTheme] = useState("light"); // light | dark
   const [search, setSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
@@ -15,13 +17,30 @@ export default function CompanyDashboard() {
   const [postedInternships, setPostedInternships] = useState([]);
   const [newsletters, setNewsletters] = useState([]);
   const [applicants, setApplicants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
   const [showPostForm, setShowPostForm] = useState(false);
   const [editingInternship, setEditingInternship] = useState(null);
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
   const [selectedInternship, setSelectedInternship] = useState(null);
   const [posting, setPosting] = useState(false);
   const dropdownRef = useRef(null);
+  
+  // --- STATE FOR COURSES ---
+  const [courses, setCourses] = useState([]);
+  const [showCourseForm, setShowCourseForm] = useState(false);
+  const [courseFormData, setCourseFormData] = useState({
+    name: "",
+    description: "",
+    category: "Development",
+    duration: "4 weeks",
+    price: "Free",
+    isPublished: false,
+    prerequisites: "",
+    courseVideo: null, // Stores the File object
+  });
+  const [creatingCourse, setCreatingCourse] = useState(false);
+  const [videoFileName, setVideoFileName] = useState(''); // Stores the name for display
+  // -----------------------------
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -33,6 +52,7 @@ export default function CompanyDashboard() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [showMicrotaskModal, setShowMicrotaskModal] = useState(false);
@@ -71,6 +91,8 @@ export default function CompanyDashboard() {
 
   const lowercaseSearch = search.toLowerCase();
 
+  // --- FETCHING FUNCTIONS ---
+
   // Fetch company internships
   const fetchInternships = async () => {
     try {
@@ -87,8 +109,6 @@ export default function CompanyDashboard() {
       }
     } catch (error) {
       console.error('Error fetching internships:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -144,6 +164,25 @@ export default function CompanyDashboard() {
       console.error('Error fetching newsletters:', error);
     }
   };
+  
+  // Fetch Courses
+  const fetchCourses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/courses/company/my-courses', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCourses(data.courses || []);
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    }
+  };
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -185,57 +224,73 @@ export default function CompanyDashboard() {
     }
   };
 
-  // Setup Socket.io and fetch initial data
+  // --- INITIAL DATA FETCH & SOCKET SETUP ---
+
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('token');
     
     console.log('Socket.io setup - userId:', userId, 'token:', token ? 'exists' : 'missing');
     
-    if (userId && token) {
-      // Connect to Socket.io server
-      socketRef.current = io('http://localhost:5000');
-      
-      socketRef.current.on('connect', () => {
-        console.log('Socket.io connected:', socketRef.current.id);
-        // Register user after connection is established
-        socketRef.current.emit('register', userId);
-        console.log('Registered userId with socket:', userId);
-      });
-      
-      // Listen for new notifications
-      socketRef.current.on('newNotification', (notification) => {
-        console.log('New notification received:', notification);
-        setNotifications(prev => [notification, ...prev]);
-        setUnreadCount(prev => prev + 1);
+    // Define socket logic to use in conditional block
+    const setupSocket = () => {
+        socketRef.current = io('http://localhost:5000');
         
-        // Show browser notification if permitted
-        if (Notification.permission === 'granted') {
-          new Notification(notification.title, {
-            body: notification.message,
-            icon: '/logo.png'
-          });
+        socketRef.current.on('connect', () => {
+            console.log('Socket.io connected:', socketRef.current.id);
+            socketRef.current.emit('register', userId);
+            console.log('Registered userId with socket:', userId);
+        });
+        
+        socketRef.current.on('newNotification', (notification) => {
+            console.log('New notification received:', notification);
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            
+            if (Notification.permission === 'granted') {
+                new Notification(notification.title, {
+                    body: notification.message,
+                    icon: '/logo.png'
+                });
+            }
+        });
+
+        socketRef.current.on('disconnect', () => {
+            console.log('Socket.io disconnected');
+        });
+
+        socketRef.current.on('connect_error', (error) => {
+            console.error('Socket.io connection error:', error);
+        });
+    };
+
+
+    if (userId && token) {
+      setupSocket();
+      
+      // Fetch all initial data concurrently
+      const loadData = async () => {
+        try {
+          await Promise.all([
+            fetchNotifications(),
+            fetchInternships(),
+            fetchNewsletters(),
+            fetchApplicants(),
+            fetchCourses(),
+          ]);
+        } catch (error) {
+          console.error("Error during initial data loading:", error);
+        } finally {
+          setLoading(false);
         }
-      });
-
-      socketRef.current.on('disconnect', () => {
-        console.log('Socket.io disconnected');
-      });
-
-      socketRef.current.on('connect_error', (error) => {
-        console.error('Socket.io connection error:', error);
-      });
-
-      // Fetch initial notifications
-      fetchNotifications();
-      fetchInternships();
-      fetchNewsletters();
-      fetchApplicants();
+      };
+      
+      loadData();
     } else {
-      console.warn('Cannot setup Socket.io: userId or token missing');
+      console.warn('Cannot setup: userId or token missing');
+      setLoading(false);
     }
 
-    // Request notification permission
     if (Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -246,7 +301,7 @@ export default function CompanyDashboard() {
         socketRef.current.disconnect();
       }
     };
-  }, []);
+  }, [fetchApplicants, fetchCourses, fetchInternships, fetchNewsletters, fetchNotifications]); // Dependencies included for completeness
 
   // Close notification dropdown when clicking outside
   useEffect(() => {
@@ -259,10 +314,8 @@ export default function CompanyDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch on mount
-  useState(() => {
-    fetchInternships();
-  }, []);
+
+  // --- MEMOIZED FILTERS ---
 
   const filteredInternships = useMemo(
     () =>
@@ -271,6 +324,23 @@ export default function CompanyDashboard() {
       ),
     [lowercaseSearch, postedInternships]
   );
+  
+  const filteredCourses = useMemo(
+    () => courses.filter((c) => c.name.toLowerCase().includes(lowercaseSearch)),
+    [lowercaseSearch, courses]
+  );
+
+  const filteredApplicants = useMemo(
+    () =>
+      applicants.filter(
+        (a) =>
+          (a.studentId?.profile?.fullName || a.studentId?.username || '').toLowerCase().includes(lowercaseSearch) ||
+          a.internshipTitle.toLowerCase().includes(lowercaseSearch)
+      ),
+    [lowercaseSearch, applicants]
+  );
+
+  // --- HANDLERS ---
 
   const handlePostInternship = async (e) => {
     e.preventDefault();
@@ -300,22 +370,14 @@ export default function CompanyDashboard() {
 
       if (response.ok) {
         alert(editingInternship ? 'Internship updated successfully!' : 'Internship posted successfully!');
-        fetchInternships();
+        // Re-fetch to update the list immediately
+        fetchInternships(); 
         setShowPostForm(false);
         setEditingInternship(null);
         setFormData({
-          title: "",
-          company: "",
-          location: "",
-          type: "Remote",
-          duration: "",
-          stipend: "",
-          description: "",
-          requirements: "",
-          skills: "",
-          applicationDeadline: ""
+          title: "", company: "", location: "", type: "Remote", duration: "", stipend: "", 
+          description: "", requirements: "", skills: "", applicationDeadline: ""
         });
-        fetchInternships();
       } else {
         const error = await response.json();
         alert(`Error: ${error.message}`);
@@ -327,6 +389,64 @@ export default function CompanyDashboard() {
       setPosting(false);
     }
   };
+
+  // --- MODIFIED: Handle Course Creation to support File Upload ---
+  const handleCreateCourse = async (e) => {
+    e.preventDefault();
+    setCreatingCourse(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Check if video file is missing
+      if (!courseFormData.courseVideo) {
+          alert('Please upload a course video file.');
+          setCreatingCourse(false);
+          return;
+      }
+
+      // Use FormData to send both JSON data and the file
+      const data = new FormData();
+      data.append('name', courseFormData.name);
+      data.append('description', courseFormData.description);
+      data.append('category', courseFormData.category);
+      data.append('duration', courseFormData.duration);
+      data.append('price', courseFormData.price);
+      data.append('isPublished', courseFormData.isPublished);
+      data.append('prerequisites', courseFormData.prerequisites);
+      data.append('courseVideo', courseFormData.courseVideo); // Append the File object
+      
+      const response = await fetch('http://localhost:5000/api/courses', {
+        method: 'POST',
+        headers: {
+          // IMPORTANT: Do NOT set 'Content-Type': 'application/json' when using FormData for file uploads.
+          'Authorization': `Bearer ${token}`,
+        },
+        body: data // Send the FormData object
+      });
+
+      if (response.ok) {
+        alert('Course created successfully!');
+        fetchCourses(); 
+        setShowCourseForm(false);
+        // Reset form data and file state
+        setCourseFormData({
+          name: "", description: "", category: "Development", duration: "4 weeks", 
+          price: "Free", isPublished: false, prerequisites: "", courseVideo: null,
+        });
+        setVideoFileName('');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message || 'Failed to create course.'}`);
+      }
+    } catch (error) {
+      console.error('Error creating course:', error);
+      alert('Failed to create course. Please try again.');
+    } finally {
+      setCreatingCourse(false);
+    }
+  };
+
 
   const handleViewApplicants = (internship) => {
     setSelectedInternship(internship);
@@ -354,16 +474,6 @@ export default function CompanyDashboard() {
     setSelectedApplicant(applicant);
     setShowProfileModal(true);
   };
-
-  const filteredApplicants = useMemo(
-    () =>
-      applicants.filter(
-        (a) =>
-          (a.studentId?.profile?.fullName || a.studentId?.username || '').toLowerCase().includes(lowercaseSearch) ||
-          a.internshipTitle.toLowerCase().includes(lowercaseSearch)
-      ),
-    [lowercaseSearch, applicants]
-  );
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -410,7 +520,8 @@ export default function CompanyDashboard() {
 
           <nav className="hidden md:flex items-center gap-2 md:gap-4 text-sm md:text-base">
             {/* Tabs */}
-            {["internships", "applicants", "newsletters", "about"].map((tab) => (
+            {["internships", "courses", "applicants", "newsletters", "about"].map((tab) => (
+
               <button
                 key={tab}
                 onClick={() => handleTabChange(tab)}
@@ -517,7 +628,8 @@ export default function CompanyDashboard() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-slate-200 dark:border-slate-700">
             <nav className="px-4 py-3 space-y-2">
-              {["internships", "applicants", "newsletters", "about"].map((tab) => (
+              {["internships", "courses", "applicants", "newsletters", "about"].map((tab) => (
+
                 <button
                   key={tab}
                   onClick={() => {
@@ -571,6 +683,8 @@ export default function CompanyDashboard() {
 
       {/* MAIN CONTENT */}
       <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
+        
+        {/* INTERNSHIPS TAB */}
         {activeTab === "internships" && (
           <section>
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -578,7 +692,14 @@ export default function CompanyDashboard() {
                 My Posted Internships
               </h1>
               <button 
-                onClick={() => setShowPostForm(true)}
+                onClick={() => {
+                  setShowPostForm(true);
+                  setEditingInternship(null); // Ensure form is for creation
+                  setFormData({
+                    title: "", company: "", location: "", type: "Remote", duration: "", stipend: "", 
+                    description: "", requirements: "", skills: "", applicationDeadline: ""
+                  });
+                }}
                 className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#36217c] transition"
               >
                 + Post New Internship
@@ -667,6 +788,92 @@ export default function CompanyDashboard() {
           </section>
         )}
 
+        {/* COURSES TAB */}
+        {activeTab === "courses" && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <h1 className="text-xl font-semibold md:text-2xl">
+                My Courses
+              </h1>
+
+              <button
+                onClick={() => setShowCourseForm(true)}
+                className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#36217c]"
+              >
+                + Create Course
+              </button>
+            </div>
+            
+            {/* SEARCH */}
+            <div>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by course title…"
+                className="
+                  w-full rounded-xl border border-slate-300 
+                  bg-white text-black
+                  dark:bg-white dark:text-black
+                  px-4 py-2.5 text-sm shadow-sm outline-none 
+                  focus:border-indigo-500 
+                  focus:ring-2 focus:ring-[#443097] 
+                  dark:border-slate-600 
+                  dark:focus:ring-[#443097]
+                "
+              />
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#443097]"></div>
+                <span className="ml-3 text-lg">Loading courses...</span>
+              </div>
+            ) : courses.length === 0 ? (
+               <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <Target className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p>No courses created yet. Start creating valuable content for students!</p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {(search.trim() === "" ? courses : filteredCourses).map((course) => (
+                  <article key={course._id} className={`rounded-2xl border p-4 shadow-sm ${cardTheme}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <h2 className="text-sm font-semibold md:text-base flex-1 line-clamp-2">
+                        {course.name}
+                      </h2>
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ml-2 ${
+                          course.isPublished
+                            ? "bg-green-100 text-green-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                      >
+                        {course.isPublished ? 'Published' : 'Draft'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#443097] md:text-sm">{course.category} · {course.duration}</p>
+                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 line-clamp-3">
+                      {course.description}
+                    </p>
+
+                    <div className="mt-4 flex gap-2">
+                      <button className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#36217c]">
+                        View/Edit Content
+                      </button>
+                      <button className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                        Details
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+
+        {/* APPLICANTS TAB */}
         {activeTab === "applicants" && (
           <section>
             <div className="mb-4">
@@ -763,6 +970,7 @@ export default function CompanyDashboard() {
           </section>
         )}
 
+        {/* NEWSLETTERS TAB */}
         {activeTab === "newsletters" && (
           <section>
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -830,6 +1038,7 @@ export default function CompanyDashboard() {
           </section>
         )}
 
+        {/* NOTIFICATIONS TAB */}
         {activeTab === "notifications" && (
           <section>
             <div className="mb-4 flex items-center justify-between">
@@ -887,128 +1096,127 @@ export default function CompanyDashboard() {
           </section>
         )}
 
-      {/* Microtask Modal */}
-      {showMicrotaskModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowMicrotaskModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-full max-w-lg p-6" onClick={(e)=>e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-3">Assign Microtask</h3>
-            <div className="grid gap-3">
-              <input className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Title" value={microtaskForm.title} onChange={(e)=>setMicrotaskForm(prev=>({...prev,title:e.target.value}))} />
-              <select className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.type} onChange={(e)=>setMicrotaskForm(prev=>({...prev,type:e.target.value}))}>
-                <option value="task">Task</option>
-                <option value="quiz">Quiz</option>
-                <option value="github">GitHub</option>
-              </select>
-              <textarea className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Instructions" value={microtaskForm.instructions} onChange={(e)=>setMicrotaskForm(prev=>({...prev,instructions:e.target.value}))} />
-              <input type="date" className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.dueDate} onChange={(e)=>setMicrotaskForm(prev=>({...prev,dueDate:e.target.value}))} />
-              {microtaskForm.type === 'quiz' && (
-                <>
-                  <div className="flex gap-4 items-center">
-                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='ai'} onChange={()=>setMicrotaskMode('ai')} /> Use AI</label>
-                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='manual'} onChange={()=>setMicrotaskMode('manual')} /> Create Manually</label>
-                  </div>
-
-                  {microtaskMode === 'ai' && (
-                    <>
-                      <div className="flex gap-2 items-center mt-2">
-                        <label className="text-sm">Questions:</label>
-                        <input type="number" min={1} max={10} value={questionCount} onChange={(e)=>setQuestionCount(Number(e.target.value))} className={`border rounded-lg p-2 w-20 ${cardTheme}`} />
-                        <button onClick={async ()=>{
-                          try {
-                            const token = localStorage.getItem('token');
-                            const { internshipId } = microtaskAssigning;
-                            const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
-                              method: 'POST',
-                              headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-                              body: JSON.stringify({ questionCount })
-                            });
-                            const data = await resp.json();
-                            if (!resp.ok) { alert(data.message || 'Failed to generate'); return; }
-                            setMicrotaskQuestions(data.questions || []);
-                            alert('Generated quiz preview ready');
-                          } catch (err) { console.error('Generate quiz error', err); alert('Error generating quiz'); }
-                        }} className="px-3 py-1 bg-[#443097] text-white rounded">Use AI</button>
-                        <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
-                      </div>
-                      {microtaskQuestions.length > 0 && (
-                        <div className="mt-2 p-2 border rounded">
-                          <p className="text-sm font-medium">Preview Questions:</p>
-                          <ol className="list-decimal ml-5 text-sm">
-                            {microtaskQuestions.map((q, i)=> (
-                              <li key={i} className="mt-1">{q.question} <span className="text-xs text-slate-500">(Options: {q.options?.join(' / ')})</span></li>
-                            ))}
-                          </ol>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {microtaskMode === 'manual' && (
-                    <div className="mt-3">
-                      <p className="text-sm font-medium mb-2">Create quiz questions (up to 10)</p>
-                      {(microtaskQuestions || []).map((q, qi) => (
-                        <div key={qi} className="p-2 border rounded mb-2">
-                          <input className={`w-full border p-2 rounded ${cardTheme}`} placeholder={`Question ${qi+1}`} value={q.question} onChange={(e)=>{
-                            const copy = [...microtaskQuestions]; copy[qi].question = e.target.value; setMicrotaskQuestions(copy);
-                          }} />
-                          <div className="grid grid-cols-2 gap-2 mt-2">
-                            { (q.options||[]).map((opt, oi) => (
-                              <div key={oi} className="flex items-center gap-2">
-                                <input className="w-full border p-2 rounded" value={opt} onChange={(e)=>{ const copy=[...microtaskQuestions]; copy[qi].options[oi]=e.target.value; setMicrotaskQuestions(copy); }} />
-                                <label className="text-sm"> <input type="radio" name={`correct_${qi}`} checked={q.correctIndex===oi} onChange={()=>{ const copy=[...microtaskQuestions]; copy[qi].correctIndex=oi; setMicrotaskQuestions(copy); }} /> </label>
-                              </div>
-                            )) }
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            <button onClick={()=>{
-                              const copy = [...microtaskQuestions]; copy.splice(qi,1); setMicrotaskQuestions(copy);
-                            }} className="px-2 py-1 border rounded">Remove</button>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex gap-2">
-                        <button onClick={()=>{
-                          if ((microtaskQuestions||[]).length >= 10) return alert('Max 10 questions');
-                          setMicrotaskQuestions(prev => [...(prev||[]), { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
-                        }} className="px-3 py-1 bg-[#443097] text-white rounded">Add Question</button>
-                        <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
-                      </div>
+        {/* Microtask Modal */}
+        {showMicrotaskModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowMicrotaskModal(false)}>
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-full max-w-lg p-6" onClick={(e)=>e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-3">Assign Microtask</h3>
+              <div className="grid gap-3">
+                <input className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Title" value={microtaskForm.title} onChange={(e)=>setMicrotaskForm(prev=>({...prev,title:e.target.value}))} />
+                <select className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.type} onChange={(e)=>setMicrotaskForm(prev=>({...prev,type:e.target.value}))}>
+                  <option value="task">Task</option>
+                  <option value="quiz">Quiz</option>
+                  <option value="github">GitHub</option>
+                </select>
+                <textarea className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Instructions" value={microtaskForm.instructions} onChange={(e)=>setMicrotaskForm(prev=>({...prev,instructions:e.target.value}))} />
+                <input type="date" className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.dueDate} onChange={(e)=>setMicrotaskForm(prev=>({...prev,dueDate:e.target.value}))} />
+                {microtaskForm.type === 'quiz' && (
+                  <>
+                    <div className="flex gap-4 items-center">
+                      <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='ai'} onChange={()=>setMicrotaskMode('ai')} /> Use AI</label>
+                      <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='manual'} onChange={()=>setMicrotaskMode('manual')} /> Create Manually</label>
                     </div>
-                  )}
-                </>
-              )}
-              <div className="flex items-center justify-end gap-2 mt-2">
-                <button onClick={()=>setShowMicrotaskModal(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
-                <button onClick={async ()=>{
-                  try{
-                    const token = localStorage.getItem('token');
-                    const { internshipId, studentId } = microtaskAssigning;
-                    const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
-                    if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
-                    const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
-                      method: 'POST',
-                      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-                      body: JSON.stringify(body)
-                    });
-                    if (!resp.ok) {
-                      const err = await resp.json();
-                      alert(err.message || 'Failed to assign microtask');
-                      return;
+
+                    {microtaskMode === 'ai' && (
+                      <>
+                        <div className="flex gap-2 items-center mt-2">
+                          <label className="text-sm">Questions:</label>
+                          <input type="number" min={1} max={10} value={questionCount} onChange={(e)=>setQuestionCount(Number(e.target.value))} className={`border rounded-lg p-2 w-20 ${cardTheme}`} />
+                          <button onClick={async ()=>{
+                            try {
+                              const token = localStorage.getItem('token');
+                              const { internshipId } = microtaskAssigning;
+                              const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
+                                method: 'POST',
+                                headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+                                body: JSON.stringify({ questionCount })
+                              });
+                              const data = await resp.json();
+                              if (!resp.ok) { alert(data.message || 'Failed to generate'); return; }
+                              setMicrotaskQuestions(data.questions || []);
+                              alert('Generated quiz preview ready');
+                            } catch (err) { console.error('Generate quiz error', err); alert('Error generating quiz'); }
+                          }} className="px-3 py-1 bg-[#443097] text-white rounded">Use AI</button>
+                          <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
+                        </div>
+                        {microtaskQuestions.length > 0 && (
+                          <div className="mt-2 p-2 border rounded">
+                            <p className="text-sm font-medium">Preview Questions:</p>
+                            <ol className="list-decimal ml-5 text-sm">
+                              {microtaskQuestions.map((q, i)=> (
+                                <li key={i} className="mt-1">{q.question} <span className="text-xs text-slate-500">(Options: {q.options?.join(' / ')})</span></li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {microtaskMode === 'manual' && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium mb-2">Create quiz questions (up to 10)</p>
+                        {(microtaskQuestions || []).map((q, qi) => (
+                          <div key={qi} className="p-2 border rounded mb-2">
+                            <input className={`w-full border p-2 rounded ${cardTheme}`} placeholder={`Question ${qi+1}`} value={q.question} onChange={(e)=>{
+                              const copy = [...microtaskQuestions]; copy[qi].question = e.target.value; setMicrotaskQuestions(copy);
+                            }} />
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              { (q.options||[]).map((opt, oi) => (
+                                <div key={oi} className="flex items-center gap-2">
+                                  <input className="w-full border p-2 rounded" value={opt} onChange={(e)=>{ const copy=[...microtaskQuestions]; copy[qi].options[oi]=e.target.value; setMicrotaskQuestions(copy); }} />
+                                  <label className="text-sm"> <input type="radio" name={`correct_${qi}`} checked={q.correctIndex===oi} onChange={()=>{ const copy=[...microtaskQuestions]; copy[qi].correctIndex=oi; setMicrotaskQuestions(copy); }} /> </label>
+                                </div>
+                              )) }
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={()=>{
+                                const copy = [...microtaskQuestions]; copy.splice(qi,1); setMicrotaskQuestions(copy);
+                              }} className="px-2 py-1 border rounded">Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <button onClick={()=>{
+                            if ((microtaskQuestions||[]).length >= 10) return alert('Max 10 questions');
+                            setMicrotaskQuestions(prev => [...(prev||[]), { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
+                          }} className="px-3 py-1 bg-[#443097] text-white rounded">Add Question</button>
+                          <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="flex items-center justify-end gap-2 mt-2">
+                  <button onClick={()=>setShowMicrotaskModal(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
+                  <button onClick={async ()=>{
+                    try{
+                      const token = localStorage.getItem('token');
+                      const { internshipId, studentId } = microtaskAssigning;
+                      const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
+                      if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
+                      const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
+                        method: 'POST',
+                        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify(body)
+                      });
+                      if (!resp.ok) {
+                        const err = await resp.json();
+                        alert(err.message || 'Failed to assign microtask');
+                        return;
+                      }
+                      alert('Microtask assigned');
+                      setShowMicrotaskModal(false);
+                      setMicrotaskQuestions([]);
+                    } catch(err) {
+                      console.error('Assign microtask error:', err);
+                      alert('Error assigning microtask');
                     }
-                    alert('Microtask assigned');
-                    setShowMicrotaskModal(false);
-                    setMicrotaskQuestions([]);
-                    setJobDescription('');
-                  } catch(err) {
-                    console.error('Assign microtask error:', err);
-                    alert('Error assigning microtask');
-                  }
-                }} className="px-4 py-2 rounded-lg bg-[#443097] text-white">Assign</button>
+                  }} className="px-4 py-2 rounded-lg bg-[#443097] text-white">Assign</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Create Newsletter Modal */}
       {showCreateNewsletter && (
@@ -1197,7 +1405,6 @@ export default function CompanyDashboard() {
           </section>
         )}
       </main>
-
       {/* Post New Internship Modal */}
       {showPostForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => {
@@ -1362,145 +1569,6 @@ export default function CompanyDashboard() {
         </div>
       )}
 
-      {/* View Profile Modal */}
-      {showProfileModal && selectedApplicant && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowProfileModal(false)}>
-          <div 
-            className={`max-w-4xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${cardTheme} p-6`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Applicant Profile</h2>
-              <button onClick={() => setShowProfileModal(false)} className="text-3xl font-bold text-slate-500 hover:text-slate-700">×</button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Profile Header */}
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  {selectedApplicant.studentId?.profile?.profilePicture ? (
-                    <img
-                      src={`http://localhost:5000${selectedApplicant.studentId.profile.profilePicture}`}
-                      alt="Profile"
-                      className="w-24 h-24 rounded-full object-cover border-4 border-purple-200"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 rounded-full bg-purple-200 flex items-center justify-center text-3xl font-bold text-purple-600">
-                      {selectedApplicant.studentId?.profile?.fullName?.charAt(0) || selectedApplicant.studentId?.username?.charAt(0) || '?'}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold mb-1">
-                    {selectedApplicant.studentId?.profile?.fullName || selectedApplicant.studentId?.username || 'N/A'}
-                  </h3>
-                  <p className="text-slate-600 dark:text-slate-400 mb-2">{selectedApplicant.studentId?.email}</p>
-                  {selectedApplicant.studentId?.profile?.phone && (
-                    <p className="text-slate-600 dark:text-slate-400 flex items-center gap-2"><Phone className="w-4 h-4" /> {selectedApplicant.studentId.profile.phone}</p>
-                  )}
-                  {selectedApplicant.studentId?.profile?.location && (
-                    <p className="text-slate-600 dark:text-slate-400 flex items-center gap-2"><MapPin className="w-4 h-4" /> {selectedApplicant.studentId.profile.location}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Bio */}
-              {selectedApplicant.studentId?.profile?.bio && (
-                <div className={`p-4 rounded-lg ${theme === "light" ? "bg-slate-50" : "bg-slate-800"}`}>
-                  <h4 className="font-semibold mb-2">About</h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">{selectedApplicant.studentId.profile.bio}</p>
-                </div>
-              )}
-
-              {/* Skills */}
-              {selectedApplicant.studentId?.profile?.skills && selectedApplicant.studentId.profile.skills.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3">Skills</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedApplicant.studentId.profile.skills.map((skill, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full text-sm">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Education */}
-              {selectedApplicant.studentId?.profile?.education && selectedApplicant.studentId.profile.education.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3">Education</h4>
-                  <div className="space-y-3">
-                    {selectedApplicant.studentId.profile.education.map((edu, idx) => (
-                      <div key={idx} className={`p-4 rounded-lg border ${theme === "light" ? "border-slate-200" : "border-slate-700"}`}>
-                        <h5 className="font-semibold">{edu.degree || 'Degree'}</h5>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">{edu.institution || 'Institution'}</p>
-                        {edu.fieldOfStudy && (
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Field: {edu.fieldOfStudy}</p>
-                        )}
-                        {(edu.startDate || edu.endDate) && (
-                          <p className="text-xs text-slate-500 mt-1">
-                            {edu.startDate ? new Date(edu.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 'N/A'} - 
-                            {edu.current ? 'Present' : edu.endDate ? new Date(edu.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 'N/A'}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Application Details */}
-              <div className={`p-4 rounded-lg border ${theme === "light" ? "border-slate-200 bg-slate-50" : "border-slate-700 bg-slate-800"}`}>
-                <h4 className="font-semibold mb-3">Application Details</h4>
-                <div className="grid md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-slate-600 dark:text-slate-400">Applied Date:</span>
-                    <p className="font-medium">{new Date(selectedApplicant.appliedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-600 dark:text-slate-400">Status:</span>
-                    <p className="font-medium">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        selectedApplicant.status === 'Shortlisted' ? 'bg-green-100 text-green-700' :
-                        selectedApplicant.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {selectedApplicant.status}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Resume Download */}
-              {selectedApplicant.studentId?.profile?.resume && (
-                <div className="flex justify-center">
-                  <a
-                    href={`http://localhost:5000${selectedApplicant.studentId.profile.resume}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download
-                    className="px-6 py-3 bg-[#443097] text-white rounded-lg font-semibold hover:bg-[#36217c] flex items-center gap-2 justify-center"
-                  >
-                    <Download className="w-4 h-4" /> Download Complete Resume
-                  </a>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end mt-6 pt-4 border-t border-slate-300 dark:border-slate-600">
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className={`px-6 py-3 rounded-lg font-semibold border ${theme === "light" ? "border-slate-300 hover:bg-slate-100" : "border-slate-600 hover:bg-slate-700"}`}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* View Applicants Modal */}
       {showApplicantsModal && selectedInternship && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowApplicantsModal(false)}>
@@ -1597,7 +1665,7 @@ export default function CompanyDashboard() {
         </div>
       )}
 
-      {/* APPLICANT PROFILE MODAL */}
+      {/* View Profile Modal */}
       {showProfileModal && selectedApplicant && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className={`rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${theme === "light" ? "bg-white" : "bg-slate-800"}`}>
@@ -1734,6 +1802,291 @@ export default function CompanyDashboard() {
           </div>
         </div>
       )}
+
+
+      {/* Microtask Modal */}
+      {showMicrotaskModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowMicrotaskModal(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-full max-w-lg p-6" onClick={(e)=>e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-3">Assign Microtask</h3>
+            <div className="grid gap-3">
+              <input className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Title" value={microtaskForm.title} onChange={(e)=>setMicrotaskForm(prev=>({...prev,title:e.target.value}))} />
+              <select className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.type} onChange={(e)=>setMicrotaskForm(prev=>({...prev,type:e.target.value}))}>
+                <option value="task">Task</option>
+                <option value="quiz">Quiz</option>
+                <option value="github">GitHub</option>
+              </select>
+              <textarea className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Instructions" value={microtaskForm.instructions} onChange={(e)=>setMicrotaskForm(prev=>({...prev,instructions:e.target.value}))} />
+              <input type="date" className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.dueDate} onChange={(e)=>setMicrotaskForm(prev=>({...prev,dueDate:e.target.value}))} />
+              {microtaskForm.type === 'quiz' && (
+                <>
+                  <div className="flex gap-4 items-center">
+                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='ai'} onChange={()=>setMicrotaskMode('ai')} /> Use AI</label>
+                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='manual'} onChange={()=>setMicrotaskMode('manual')} /> Create Manually</label>
+                  </div>
+
+                  {microtaskMode === 'ai' && (
+                    <>
+                      <div className="flex gap-2 items-center mt-2">
+                        <label className="text-sm">Questions:</label>
+                        <input type="number" min={1} max={10} value={questionCount} onChange={(e)=>setQuestionCount(Number(e.target.value))} className={`border rounded-lg p-2 w-20 ${cardTheme}`} />
+                        <button onClick={async ()=>{
+                          try {
+                            const token = localStorage.getItem('token');
+                            const { internshipId } = microtaskAssigning;
+                            const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
+                              method: 'POST',
+                              headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify({ questionCount })
+                            });
+                            const data = await resp.json();
+                            if (!resp.ok) { alert(data.message || 'Failed to generate'); return; }
+                            setMicrotaskQuestions(data.questions || []);
+                            alert('Generated quiz preview ready');
+                          } catch (err) { console.error('Generate quiz error', err); alert('Error generating quiz'); }
+                        }} className="px-3 py-1 bg-[#443097] text-white rounded">Use AI</button>
+                        <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
+                      </div>
+                      {microtaskQuestions.length > 0 && (
+                        <div className="mt-2 p-2 border rounded">
+                          <p className="text-sm font-medium">Preview Questions:</p>
+                          <ol className="list-decimal ml-5 text-sm">
+                            {microtaskQuestions.map((q, i)=> (
+                              <li key={i} className="mt-1">{q.question} <span className="text-xs text-slate-500">(Options: {q.options?.join(' / ')})</span></li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {microtaskMode === 'manual' && (
+                    <div className="mt-3">
+                      <p className="text-sm font-medium mb-2">Create quiz questions (up to 10)</p>
+                      {(microtaskQuestions || []).map((q, qi) => (
+                        <div key={qi} className="p-2 border rounded mb-2">
+                          <input className={`w-full border p-2 rounded ${cardTheme}`} placeholder={`Question ${qi+1}`} value={q.question} onChange={(e)=>{
+                            const copy = [...microtaskQuestions]; copy[qi].question = e.target.value; setMicrotaskQuestions(copy);
+                          }} />
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            { (q.options||[]).map((opt, oi) => (
+                              <div key={oi} className="flex items-center gap-2">
+                                <input className="w-full border p-2 rounded" value={opt} onChange={(e)=>{ const copy=[...microtaskQuestions]; copy[qi].options[oi]=e.target.value; setMicrotaskQuestions(copy); }} />
+                                <label className="text-sm"> <input type="radio" name={`correct_${qi}`} checked={q.correctIndex===oi} onChange={()=>{ const copy=[...microtaskQuestions]; copy[qi].correctIndex=oi; setMicrotaskQuestions(copy); }} /> </label>
+                              </div>
+                            )) }
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={()=>{
+                              const copy = [...microtaskQuestions]; copy.splice(qi,1); setMicrotaskQuestions(copy);
+                            }} className="px-2 py-1 border rounded">Remove</button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <button onClick={()=>{
+                          if ((microtaskQuestions||[]).length >= 10) return alert('Max 10 questions');
+                          setMicrotaskQuestions(prev => [...(prev||[]), { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
+                        }} className="px-3 py-1 bg-[#443097] text-white rounded">Add Question</button>
+                        <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <button onClick={()=>setShowMicrotaskModal(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
+                <button onClick={async ()=>{
+                  try{
+                    const token = localStorage.getItem('token');
+                    const { internshipId, studentId } = microtaskAssigning;
+                    const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
+                    if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
+                    const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
+                      method: 'POST',
+                      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+                      body: JSON.stringify(body)
+                    });
+                    if (!resp.ok) {
+                      const err = await resp.json();
+                      alert(err.message || 'Failed to assign microtask');
+                      return;
+                    }
+                    alert('Microtask assigned');
+                    setShowMicrotaskModal(false);
+                    setMicrotaskQuestions([]);
+                  } catch(err) {
+                    console.error('Assign microtask error:', err);
+                    alert('Error assigning microtask');
+                  }
+                }} className="px-4 py-2 rounded-lg bg-[#443097] text-white">Assign</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        )}
+
+      {/* COURSE CREATION MODAL - MODIFIED FOR VIDEO UPLOAD */}
+      {showCourseForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowCourseForm(false)}>
+          <div 
+            className={`max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${cardTheme} p-6`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Create New Course</h2>
+              <button onClick={() => setShowCourseForm(false)} className="text-2xl font-bold text-slate-500 hover:text-slate-700">×</button>
+            </div>
+
+            <form onSubmit={handleCreateCourse} className="space-y-4">
+              {/* Course Name */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Course Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={courseFormData.name}
+                  onChange={(e) => setCourseFormData({...courseFormData, name: e.target.value})}
+                  className={`w-full rounded-lg border px-3 py-2 ${theme === "light" ? "border-slate-300 bg-white" : "border-slate-600 bg-slate-700"}`}
+                  placeholder="e.g. Advanced React & Redux"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Description *</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={courseFormData.description}
+                  onChange={(e) => setCourseFormData({...courseFormData, description: e.target.value})}
+                  className={`w-full rounded-lg border px-3 py-2 ${theme === "light" ? "border-slate-300 bg-white" : "border-slate-600 bg-slate-700"}`}
+                  placeholder="Detailed description of the course content and learning outcomes..."
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Category *</label>
+                  <select
+                    required
+                    value={courseFormData.category}
+                    onChange={(e) => setCourseFormData({...courseFormData, category: e.target.value})}
+                    className={`w-full rounded-lg border px-3 py-2 ${theme === "light" ? "border-slate-300 bg-white" : "border-slate-600 bg-slate-700"}`}
+                  >
+                    <option value="Development">Development</option>
+                    <option value="Design">Design</option>
+                    <option value="Business">Business</option>
+                    <option value="Data Science">Data Science</option>
+                  </select>
+                </div>
+
+                {/* Duration */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Duration</label>
+                  <input
+                    type="text"
+                    value={courseFormData.duration}
+                    onChange={(e) => setCourseFormData({...courseFormData, duration: e.target.value})}
+                    className={`w-full rounded-lg border px-3 py-2 ${theme === "light" ? "border-slate-300 bg-white" : "border-slate-600 bg-slate-700"}`}
+                    placeholder="e.g. 6 weeks"
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Price/Cost</label>
+                  <input
+                    type="text"
+                    value={courseFormData.price}
+                    onChange={(e) => setCourseFormData({...courseFormData, price: e.target.value})}
+                    className={`w-full rounded-lg border px-3 py-2 ${theme === "light" ? "border-slate-300 bg-white" : "border-slate-600 bg-slate-700"}`}
+                    placeholder="e.g. Free, ₹499, $10"
+                  />
+                </div>
+
+                {/* Status: Published */}
+                <div className="flex items-center pt-6">
+                  <input
+                    id="isPublished"
+                    type="checkbox"
+                    checked={courseFormData.isPublished}
+                    onChange={(e) => setCourseFormData({...courseFormData, isPublished: e.target.checked})}
+                    className="w-4 h-4 text-[#443097] border-slate-300 rounded focus:ring-[#443097]"
+                  />
+                  <label htmlFor="isPublished" className="ml-2 text-sm font-medium">Publish Now</label>
+                </div>
+              </div>
+              
+              {/* Prerequisites */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Prerequisites (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={courseFormData.prerequisites}
+                  onChange={(e) => setCourseFormData({...courseFormData, prerequisites: e.target.value})}
+                  className={`w-full rounded-lg border px-3 py-2 ${theme === "light" ? "border-slate-300 bg-white" : "border-slate-600 bg-slate-700"}`}
+                  placeholder="What knowledge is required before starting the course?"
+                />
+              </div>
+
+              {/* NEW: Video Upload Input */}
+              <div>
+                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                  <Upload className="w-4 h-4"/> Course Video File (MP4/MOV) *
+                </label>
+                
+                {/* Custom File Input button */}
+                <label htmlFor="course-video-upload" className={`
+                    w-full flex items-center justify-between cursor-pointer 
+                    rounded-lg border px-3 py-2 text-sm 
+                    ${theme === "light" ? "border-slate-300 bg-white hover:bg-slate-50" : "border-slate-600 bg-slate-700 hover:bg-slate-600"}
+                  `}>
+                  <span className="truncate pr-4">
+                    {videoFileName || "Choose video file..."}
+                  </span>
+                  <span className="text-xs bg-[#443097] text-white px-3 py-1 rounded-md">Browse</span>
+                </label>
+
+                <input
+                  id="course-video-upload"
+                  type="file"
+                  required
+                  accept="video/mp4,video/mov,video/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    setCourseFormData({...courseFormData, courseVideo: file});
+                    setVideoFileName(file ? file.name : '');
+                  }}
+                  className="hidden" // Hide the default file input
+                />
+              </div>
+              {/* END NEW: Video Upload Input */}
+
+              <div className="flex gap-3 pt-4 border-t border-slate-300 dark:border-slate-600">
+                <button
+                  type="submit"
+                  disabled={creatingCourse}
+                  className="flex-1 bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
+                >
+                  {creatingCourse ? "Creating..." : "Create Course"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCourseForm(false)}
+                  className={`px-6 py-3 rounded-lg font-semibold border ${theme === "light" ? "border-slate-300 hover:bg-slate-100" : "border-slate-600 hover:bg-slate-700"}`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }
