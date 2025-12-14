@@ -10,6 +10,7 @@ const internshipRoutes = require('./routes/internshipRoutes');
 const microtaskRoutes = require('./routes/microtaskRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const courseRoutes = require('./routes/courseRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -59,6 +60,12 @@ app.use('/api/newsletters', newsletterRoutes);
 
 // Notification routes
 app.use('/api/notifications', notificationRoutes);
+
+// Course routes
+app.use('/api/courses', courseRoutes);
+
+// Course routes (disabled - file not present)
+// app.use('/api/courses', courseRoutes);
 
 // Error handling middleware (must be after routes)
 app.use((err, req, res, next) => {

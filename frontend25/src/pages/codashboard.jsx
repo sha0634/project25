@@ -28,6 +28,11 @@ export default function CompanyDashboard() {
   // --- STATE FOR COURSES ---
   const [courses, setCourses] = useState([]);
   const [showCourseForm, setShowCourseForm] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState(null);
+  const [existingCourseVideos, setExistingCourseVideos] = useState([]); // paths for already-uploaded videos
+  const [removeVideos, setRemoveVideos] = useState([]); // tracks which existing videos to remove on update
+  const [selectedCourseDetails, setSelectedCourseDetails] = useState(null);
+  const [showCourseDetailsModal, setShowCourseDetailsModal] = useState(false);
   const [courseFormData, setCourseFormData] = useState({
     name: "",
     description: "",
@@ -36,10 +41,30 @@ export default function CompanyDashboard() {
     price: "Free",
     isPublished: false,
     prerequisites: "",
-    courseVideo: null, // Stores the File object
+    courseVideos: [], // Stores File objects (allow multiple or none)
   });
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [videoFileName, setVideoFileName] = useState(''); // Stores the name for display
+  const removeSelectedVideo = (idx) => {
+    const files = [...(courseFormData.courseVideos || [])];
+    files.splice(idx, 1);
+    setCourseFormData({...courseFormData, courseVideos: files});
+    if (files.length === 0) setVideoFileName('');
+    else if (files.length === 1) setVideoFileName(files[0].name);
+    else setVideoFileName(`${files.length} files selected`);
+  };
+
+  const removeExistingVideo = (idx) => {
+    const files = [...existingCourseVideos];
+    const removed = files.splice(idx, 1)[0];
+    setExistingCourseVideos(files);
+    setRemoveVideos(prev => [...prev, removed]);
+    // update display name count
+    const totalNew = (courseFormData.courseVideos || []).length + files.length;
+    if (totalNew === 0) setVideoFileName('');
+    else if (totalNew === 1) setVideoFileName((courseFormData.courseVideos && courseFormData.courseVideos[0]?.name) || files[0]);
+    else setVideoFileName(`${totalNew} files selected`);
+  };
   // -----------------------------
 
   // Close dropdown when clicking outside
@@ -303,7 +328,9 @@ export default function CompanyDashboard() {
         socketRef.current.disconnect();
       }
     };
-  }, [fetchApplicants, fetchCourses, fetchInternships, fetchNewsletters, fetchNotifications]); // Dependencies included for completeness
+  // Run once on mount (or when `user` changes). Avoid including local function refs
+  // which causes this effect to rerun and recreate sockets repeatedly.
+  }, [user]);
 
   // Close notification dropdown when clicking outside
   useEffect(() => {
@@ -396,18 +423,13 @@ export default function CompanyDashboard() {
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     setCreatingCourse(true);
+    // Log selected files for debugging
+    console.log('Creating course — selected video files:', courseFormData.courseVideos);
 
     try {
       const token = localStorage.getItem('token');
       
-      // Check if video file is missing
-      if (!courseFormData.courseVideo) {
-          alert('Please upload a course video file.');
-          setCreatingCourse(false);
-          return;
-      }
-
-      // Use FormData to send both JSON data and the file
+      // Use FormData to send both JSON data and any files (optional)
       const data = new FormData();
       data.append('name', courseFormData.name);
       data.append('description', courseFormData.description);
@@ -416,27 +438,43 @@ export default function CompanyDashboard() {
       data.append('price', courseFormData.price);
       data.append('isPublished', courseFormData.isPublished);
       data.append('prerequisites', courseFormData.prerequisites);
-      data.append('courseVideo', courseFormData.courseVideo); // Append the File object
-      
-      const response = await fetch('http://localhost:5000/api/courses', {
-        method: 'POST',
+      // Append any selected video files (if provided)
+      if (courseFormData.courseVideos && courseFormData.courseVideos.length > 0) {
+        courseFormData.courseVideos.forEach((file) => {
+          data.append('courseVideos', file);
+        });
+      }
+      // If editing, include removeVideos list
+      if (editingCourseId && removeVideos && removeVideos.length > 0) {
+        data.append('removeVideos', JSON.stringify(removeVideos));
+      }
+      const url = editingCourseId ? `http://localhost:5000/api/courses/${editingCourseId}` : 'http://localhost:5000/api/courses';
+      const method = editingCourseId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
-          // IMPORTANT: Do NOT set 'Content-Type': 'application/json' when using FormData for file uploads.
           'Authorization': `Bearer ${token}`,
         },
-        body: data // Send the FormData object
+        body: data
       });
 
       if (response.ok) {
-        alert('Course created successfully!');
+        alert(editingCourseId ? 'Course updated successfully!' : 'Course created successfully!');
         fetchCourses(); 
         setShowCourseForm(false);
         // Reset form data and file state
         setCourseFormData({
           name: "", description: "", category: "Development", duration: "4 weeks", 
-          price: "Free", isPublished: false, prerequisites: "", courseVideo: null,
+          price: "Free", isPublished: false, prerequisites: "", courseVideos: [],
         });
         setVideoFileName('');
+        // Clear editing state if we updated
+        if (editingCourseId) {
+          setEditingCourseId(null);
+          setExistingCourseVideos([]);
+          setRemoveVideos([]);
+        }
       } else {
         const error = await response.json();
         alert(`Error: ${error.message || 'Failed to create course.'}`);
@@ -453,6 +491,29 @@ export default function CompanyDashboard() {
   const handleViewApplicants = (internship) => {
     setSelectedInternship(internship);
     setShowApplicantsModal(true);
+  };
+
+  const handleEditCourse = (course) => {
+    setEditingCourseId(course._id);
+    setExistingCourseVideos(course.videos || []);
+    setRemoveVideos([]);
+    setCourseFormData({
+      name: course.name || "",
+      description: course.description || "",
+      category: course.category || "Development",
+      duration: course.duration || "4 weeks",
+      price: course.price || "Free",
+      isPublished: !!course.isPublished,
+      prerequisites: course.prerequisites || "",
+      courseVideos: [], // new file selections
+    });
+
+    const total = (course.videos?.length || 0);
+    if (total === 0) setVideoFileName('');
+    else if (total === 1) setVideoFileName(course.videos[0]);
+    else setVideoFileName(`${total} files selected`);
+
+    setShowCourseForm(true);
   };
 
   const handleEditInternship = (internship) => {
@@ -799,7 +860,23 @@ export default function CompanyDashboard() {
               </h1>
 
               <button
-                onClick={() => setShowCourseForm(true)}
+                onClick={() => {
+                  setEditingCourseId(null);
+                  setExistingCourseVideos([]);
+                  setRemoveVideos([]);
+                  setCourseFormData({
+                    name: "",
+                    description: "",
+                    category: "Development",
+                    duration: "4 weeks",
+                    price: "Free",
+                    isPublished: false,
+                    prerequisites: "",
+                    courseVideos: []
+                  });
+                  setVideoFileName('');
+                  setShowCourseForm(true);
+                }}
                 className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#36217c]"
               >
                 + Create Course
@@ -860,10 +937,10 @@ export default function CompanyDashboard() {
                     </p>
 
                     <div className="mt-4 flex gap-2">
-                      <button className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#36217c]">
+                      <button onClick={() => handleEditCourse(course)} className="flex-1 bg-[#443097] text-white px-3 py-1.5 rounded-lg text-xs hover:bg-[#36217c]">
                         View/Edit Content
                       </button>
-                      <button className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                      <button onClick={() => { setSelectedCourseDetails(course); setShowCourseDetailsModal(true); }} className="flex-1 border border-slate-300 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
                         Details
                       </button>
                     </div>
@@ -1697,6 +1774,66 @@ export default function CompanyDashboard() {
         </div>
       )}
 
+      {/* Course Details Modal (company view) */}
+      {showCourseDetailsModal && selectedCourseDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowCourseDetailsModal(false)}>
+          <div className={`max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${cardTheme} p-6`} onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowCourseDetailsModal(false)} className="float-right text-3xl font-bold text-slate-500 hover:text-slate-700">×</button>
+
+            <h2 className="text-2xl font-bold mb-1">{selectedCourseDetails.name}</h2>
+            <p className="text-sm text-[#443097] font-semibold mb-4">{selectedCourseDetails.companyName || selectedCourseDetails.company || 'Company'}</p>
+
+            <div className="flex gap-3 flex-wrap mb-4">
+              <span className={`px-3 py-1 rounded-full text-sm ${selectedCourseDetails.isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{selectedCourseDetails.isPublished ? 'Published' : 'Draft'}</span>
+              {selectedCourseDetails.category && <span className="px-3 py-1 rounded-full text-sm bg-slate-200">{selectedCourseDetails.category}</span>}
+              {selectedCourseDetails.duration && <span className="px-3 py-1 rounded-full text-sm bg-slate-200">{selectedCourseDetails.duration}</span>}
+              {selectedCourseDetails.price && <span className="px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-700">{selectedCourseDetails.price}</span>}
+            </div>
+
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold">Description</h3>
+              <p className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>{selectedCourseDetails.description}</p>
+            </div>
+
+            {selectedCourseDetails.prerequisites && (
+              <div className="mb-4 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                <h4 className="font-semibold">Prerequisites</h4>
+                <p className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>{selectedCourseDetails.prerequisites}</p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <h4 className="font-semibold">Videos</h4>
+              {selectedCourseDetails.videos && selectedCourseDetails.videos.length > 0 ? (
+                <ul className="list-disc list-inside text-sm mt-2">
+                  {selectedCourseDetails.videos.map((v, i) => (
+                    <li key={i}><a href={`http://localhost:5000${v}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{`Video ${i+1}`}</a></li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500">No videos for this course.</p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <h4 className="font-semibold">Enrolled Students</h4>
+              <p className="text-sm text-slate-600">{(selectedCourseDetails.enrolledStudents || []).length} enrolled</p>
+              {(selectedCourseDetails.enrolledStudents || []).length > 0 && (
+                <div className="mt-2 text-sm space-y-1">
+                  {(selectedCourseDetails.enrolledStudents || []).map((s, idx) => (
+                    <div key={idx} className="px-3 py-1 rounded bg-slate-100 dark:bg-slate-800">{typeof s === 'string' ? s : (s._id || s.toString())}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-300 dark:border-slate-600">
+              <button onClick={() => setShowCourseDetailsModal(false)} className={`px-6 py-3 rounded-lg font-semibold border ${theme === 'light' ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-600 hover:bg-slate-700'}`}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* View Profile Modal */}
       {showProfileModal && selectedApplicant && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1966,7 +2103,7 @@ export default function CompanyDashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Create New Course</h2>
+              <h2 className="text-2xl font-bold">{editingCourseId ? 'Edit Course' : 'Create New Course'}</h2>
               <button onClick={() => setShowCourseForm(false)} className="text-2xl font-bold text-slate-500 hover:text-slate-700">×</button>
             </div>
 
@@ -2078,7 +2215,7 @@ export default function CompanyDashboard() {
                     ${theme === "light" ? "border-slate-300 bg-white hover:bg-slate-50" : "border-slate-600 bg-slate-700 hover:bg-slate-600"}
                   `}>
                   <span className="truncate pr-4">
-                    {videoFileName || "Choose video file..."}
+                    {videoFileName || "Choose video files (optional)..."}
                   </span>
                   <span className="text-xs bg-[#443097] text-white px-3 py-1 rounded-md">Browse</span>
                 </label>
@@ -2086,15 +2223,51 @@ export default function CompanyDashboard() {
                 <input
                   id="course-video-upload"
                   type="file"
-                  required
+                  multiple
                   accept="video/mp4,video/mov,video/*"
                   onChange={(e) => {
-                    const file = e.target.files[0];
-                    setCourseFormData({...courseFormData, courseVideo: file});
-                    setVideoFileName(file ? file.name : '');
+                    const files = Array.from(e.target.files || []);
+
+                    setCourseFormData(prev => {
+                      const newVideos = [...(prev.courseVideos || []), ...files];
+
+                      if (newVideos.length === 0) setVideoFileName('');
+                      else if (newVideos.length === 1) setVideoFileName(newVideos[0].name);
+                      else setVideoFileName(`${newVideos.length} files selected`);
+
+                      return { ...prev, courseVideos: newVideos };
+                    });
+
+                    // Clear the input so the same file(s) can be selected again if needed
+                    e.target.value = null;
                   }}
-                  className="hidden" // Hide the default file input
+                  className="hidden"
                 />
+                {/* Show selected files list */}
+                {/* Show existing uploaded videos (when editing) */}
+                {existingCourseVideos && existingCourseVideos.length > 0 && (
+                  <div className="mt-2 space-y-1 text-sm">
+                    <div className="text-xs text-slate-500 mb-1">Existing uploaded videos:</div>
+                    {existingCourseVideos.map((p, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2">
+                        <div className="truncate text-slate-700 dark:text-slate-300">{p}</div>
+                        <button type="button" onClick={() => removeExistingVideo(i)} className="text-xs text-red-600">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Show newly selected files list */}
+                {courseFormData.courseVideos && courseFormData.courseVideos.length > 0 && (
+                  <div className="mt-2 space-y-1 text-sm">
+                    {courseFormData.courseVideos.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2">
+                        <div className="truncate text-slate-700 dark:text-slate-300">{f.name}</div>
+                        <button type="button" onClick={() => removeSelectedVideo(i)} className="text-xs text-red-600">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               {/* END NEW: Video Upload Input */}
 
@@ -2104,7 +2277,7 @@ export default function CompanyDashboard() {
                   disabled={creatingCourse}
                   className="flex-1 bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
                 >
-                  {creatingCourse ? "Creating..." : "Create Course"}
+                  {creatingCourse ? (editingCourseId ? "Updating..." : "Creating...") : (editingCourseId ? "Update Course" : "Create Course")}
                 </button>
                 <button
                   type="button"

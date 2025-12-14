@@ -1,6 +1,6 @@
 // src/StudentDashboard.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
-import io from 'socket.io-client';
+// socket.io not used in this file
 import { Link } from "react-router-dom";
 
 import { Moon, Sun, DollarSign, Target, Rocket, MapPin, Building2, Mail, Users, Clock } from 'lucide-react'; // Added Users and Clock icons
@@ -27,16 +27,17 @@ export default function StudentDashboard() {
     const [showNewsletterModal, setShowNewsletterModal] = useState(false);
     const dropdownRef = useRef(null);
     
-    // Mock Course Data structure for demonstration
-    const [courses, setCourses] = useState([
-      { _id: "c1", title: "React Development Masterclass", company: "Tech Innovations", description: "Learn modern React, hooks, and state management in a hands-on project-based course.", level: "Advanced", duration: "8 Weeks", price: "₹2,999", studentsEnrolled: 150, prerequisites: "Basic JavaScript knowledge." },
-      { _id: "c2", title: "Product Design Essentials", company: "Design Pro Co.", description: "Covering UX principles, Figma prototyping, and design thinking for product managers and designers.", level: "Beginner", duration: "4 Weeks", price: "Free", studentsEnrolled: 300, prerequisites: "None." },
-      { _id: "c3", title: "Data Analytics for Beginners", company: "Summit Consulting", description: "An introduction to SQL, Python, and Tableau for aspiring data analysts.", level: "Intermediate", duration: "6 Weeks", price: "₹4,500", studentsEnrolled: 80, prerequisites: "Basic computer skills." },
-    ]);
+		// Courses will be fetched from backend
+		const [courses, setCourses] = useState([]);
+		const [enrolledCourseIds, setEnrolledCourseIds] = useState(() => {
+			try { const raw = localStorage.getItem('enrolledCourses'); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+		});
     
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showCourseModal, setShowCourseModal] = useState(false);
     const [enrolling, setEnrolling] = useState(false);
+	const [modalVideoBlobs, setModalVideoBlobs] = useState({});
+	const [modalLoadingVideos, setModalLoadingVideos] = useState(false);
 
 
   // Close dropdown when clicking outside
@@ -72,12 +73,24 @@ export default function StudentDashboard() {
 				console.error('Error fetching newsletters:', err);
 			}
 
-        // Fetch courses (Mocked courses are set above, replace with API call)
-       // const coursesRes = await fetch("http://localhost:5000/api/courses");
-       //   if (coursesRes.ok) {
-       //     const coursesData = await coursesRes.json();
-       //     setCourses(coursesData.courses);
-       //   }
+				// Fetch courses from backend (published company courses)
+				try {
+					const coursesRes = await fetch('http://localhost:5000/api/courses');
+					if (coursesRes.ok) {
+						const coursesData = await coursesRes.json();
+						// Normalize fields so existing UI expects `title` and `company`
+						const normalized = (coursesData.courses || []).map(c => ({
+							...c,
+							title: c.name || c.title,
+							company: c.companyName || c.company || 'Company',
+							price: c.price || 'Free',
+							level: c.level || ''
+						}));
+						setCourses(normalized);
+					}
+				} catch (err) {
+					console.error('Error fetching courses:', err);
+				}
 
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -201,6 +214,12 @@ export default function StudentDashboard() {
       alert("Successfully enrolled in the course!");
       setShowCourseModal(false);
       // Optionally update the course list to reflect new enrollment count
+	      // persist enrolled course id locally so UI updates across reloads
+	      setEnrolledCourseIds(prev => {
+	        const next = Array.from(new Set([...(prev||[]), selectedCourse._id]));
+	        try { localStorage.setItem('enrolledCourses', JSON.stringify(next)); } catch(e) {}
+	        return next;
+	      });
     } else {
       alert(data.message || "Enrollment failed");
     }
@@ -211,6 +230,48 @@ export default function StudentDashboard() {
     setEnrolling(false);
   }
 };
+
+	// Load protected videos into modal when it opens for an enrolled student
+	useEffect(() => {
+		let cancelled = false;
+		const load = async () => {
+			if (!showCourseModal || !selectedCourse) return;
+			const userId = localStorage.getItem('userId');
+			const enrolledServer = (selectedCourse.enrolledStudents || []).some(id => id.toString() === userId);
+			const enrolledLocal = enrolledCourseIds.includes(selectedCourse._id);
+			const enrolled = enrolledServer || enrolledLocal;
+			if (!enrolled) return;
+
+			setModalLoadingVideos(true);
+			const token = localStorage.getItem('token');
+			const urls = [];
+			for (let i = 0; i < (selectedCourse.videos || []).length; i++) {
+				try {
+					const res = await fetch(`http://localhost:5000/api/courses/${selectedCourse._id}/video/${i}`, {
+						headers: { Authorization: `Bearer ${token}` }
+					});
+					if (!res.ok) { urls.push(null); continue; }
+					const blob = await res.blob();
+					urls.push(URL.createObjectURL(blob));
+				} catch (err) {
+					console.error('Modal video fetch error', err);
+					urls.push(null);
+				}
+			}
+			if (!cancelled) setModalVideoBlobs(prev => ({ ...prev, [selectedCourse._id]: urls }));
+			setModalLoadingVideos(false);
+		};
+
+		load();
+
+		return () => {
+			cancelled = true;
+			if (selectedCourse && modalVideoBlobs[selectedCourse._id]) {
+				modalVideoBlobs[selectedCourse._id].forEach(u => { if (u) URL.revokeObjectURL(u); });
+				setModalVideoBlobs(prev => { const copy = { ...prev }; delete copy[selectedCourse._id]; return copy; });
+			}
+		};
+	}, [showCourseModal, selectedCourse]);
 
 
   return (
@@ -596,15 +657,23 @@ export default function StudentDashboard() {
               {course.description}
             </p>
             
-            <button
-              onClick={() => {
-                setSelectedCourse(course);
-                setShowCourseModal(true);
-              }}
-              className="mt-4 w-full rounded-lg bg-[#443097] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#36217c]"
-            >
-              View & Enroll
-            </button>
+						{(() => {
+							const userId = localStorage.getItem('userId');
+							const enrolledServer = (course.enrolledStudents || []).some(id => id.toString() === userId);
+							const enrolledLocal = enrolledCourseIds.includes(course._id);
+							const enrolled = enrolledServer || enrolledLocal;
+							return (
+								<button
+									onClick={() => {
+										setSelectedCourse(course);
+										setShowCourseModal(true);
+									}}
+									className={`mt-4 w-full rounded-lg px-3 py-1.5 text-xs font-medium text-white ${enrolled ? 'bg-[#0ea5a2] hover:bg-[#0b8f86]' : 'bg-[#443097] hover:bg-[#36217c]'}`}
+								>
+									{enrolled ? 'View' : 'Enroll'}
+								</button>
+							);
+						})()}
           </article>
         ))}
       </div>
@@ -814,8 +883,76 @@ export default function StudentDashboard() {
 
       </main>
 
-      {/* Internship Detail Modal (omitted for brevity) */}
-      {/* ... */}
+			{/* INTERNSHIP DETAIL MODAL */}
+			{showModal && selectedInternship && (
+				<div
+					className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+					onClick={() => setShowModal(false)}
+				>
+					<div
+						className={`max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${cardTheme} p-6`}
+						onClick={(e) => e.stopPropagation()}
+					>
+						<button
+							onClick={() => setShowModal(false)}
+							className="float-right text-3xl font-bold text-slate-500 hover:text-slate-700"
+						>
+							×
+						</button>
+
+						<h2 className="text-2xl font-bold mb-1">{selectedInternship.title}</h2>
+						<p className="text-lg text-[#443097] font-semibold mb-2">{selectedInternship.company}</p>
+
+						<div className="flex flex-wrap gap-4 mb-4">
+							{selectedInternship.location && (
+								<span className={`px-3 py-1 rounded-full text-sm ${theme === "light" ? "bg-slate-200" : "bg-slate-700"}`}>
+									{selectedInternship.location}
+								</span>
+							)}
+							{selectedInternship.type && (
+								<span className={`px-3 py-1 rounded-full text-sm ${theme === "light" ? "bg-slate-200" : "bg-slate-700"}`}>
+									{selectedInternship.type}
+								</span>
+							)}
+							{selectedInternship.stipend && (
+								<span className="px-3 py-1 rounded-full text-sm font-semibold text-green-700 bg-green-100">
+									{selectedInternship.stipend}
+								</span>
+							)}
+						</div>
+
+						<div className="mb-4">
+							<h3 className="text-lg font-semibold mb-1">About this role</h3>
+							<p className={`text-sm leading-relaxed ${theme === "light" ? "text-slate-700" : "text-slate-300"}`}>
+								{selectedInternship.description || selectedInternship.summary || 'No description provided.'}
+							</p>
+						</div>
+
+						<div className="mb-4">
+							<h4 className="text-sm font-medium">Responsibilities</h4>
+							<p className={`text-sm ${theme === "light" ? "text-slate-700" : "text-slate-300"}`}>{selectedInternship.responsibilities || selectedInternship.requirements || ''}</p>
+						</div>
+
+						<div className="flex gap-3 pt-4 border-t border-slate-300 dark:border-slate-600">
+							<button
+								onClick={handleApply}
+								disabled={applying}
+								className="flex-1 bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
+							>
+								{applying ? 'Applying...' : 'Apply'}
+							</button>
+							<button
+								onClick={() => setShowModal(false)}
+								className={`px-6 py-3 rounded-lg font-semibold border transition ${
+									theme === 'light' ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-600 hover:bg-slate-700'
+								}`}
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 
       {/* COURSE DETAIL MODAL - MODIFIED */}
       {showCourseModal && selectedCourse && (
@@ -862,6 +999,40 @@ export default function StudentDashboard() {
         </p>
       </div>
 
+		{/* Videos: show only if enrolled */}
+		{selectedCourse && (() => {
+			const userId = localStorage.getItem('userId');
+			const enrolledServer = (selectedCourse.enrolledStudents || []).some(id => id.toString() === userId);
+			const enrolledLocal = enrolledCourseIds.includes(selectedCourse._id);
+			const enrolled = enrolledServer || enrolledLocal;
+			if (!enrolled) return null;
+			return (
+				<div className="mb-6">
+					<h3 className="text-xl font-bold mb-2">Lecture Videos</h3>
+					{modalLoadingVideos ? (
+						<p className="text-sm">Loading videos...</p>
+					) : (modalVideoBlobs[selectedCourse._id] && modalVideoBlobs[selectedCourse._id].length > 0 ? (
+						<div className="space-y-4">
+							{modalVideoBlobs[selectedCourse._id].map((src, i) => (
+								<div key={i}>
+									{src ? (
+										<video controls className="w-full max-h-72 rounded">
+											<source src={src} />
+											Your browser does not support the video tag.
+										</video>
+									) : (
+										<p className="text-sm text-slate-500">Video {i+1} unavailable.</p>
+									)}
+							</div>
+							))}
+						</div>
+					) : (
+						<p className="text-sm text-slate-500">No videos for this course.</p>
+					))}
+				</div>
+			);
+		})()}
+
       {/* Prerequisites */}
       {selectedCourse.prerequisites && (
         <div className="mb-6 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -882,13 +1053,25 @@ export default function StudentDashboard() {
 
       {/* Action Buttons */}
       <div className="flex gap-3 pt-4 border-t border-slate-300 dark:border-slate-600">
-        <button
-          onClick={handleEnroll}
-          disabled={enrolling}
-          className="flex-1 bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
-        >
-          {enrolling ? "Enrolling..." : "Enroll Now"}
-        </button>
+				{(() => {
+					const userId = localStorage.getItem('userId');
+					const enrolledServer = (selectedCourse.enrolledStudents || []).some(id => id.toString() === userId);
+					const enrolledLocal = enrolledCourseIds.includes(selectedCourse._id);
+					const enrolled = enrolledServer || enrolledLocal;
+					// Only show the enroll button when the user is NOT enrolled.
+					if (!enrolled) {
+						return (
+							<button
+								onClick={handleEnroll}
+								disabled={enrolling}
+								className="flex-1 bg-[#443097] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#36217c] disabled:opacity-50"
+							>
+								{enrolling ? 'Enrolling...' : 'Enroll Now'}
+							</button>
+						);
+					}
+					return null;
+				})()}
         <button
           onClick={() => setShowCourseModal(false)}
           className={`px-6 py-3 rounded-lg font-semibold border transition ${
