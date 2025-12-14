@@ -84,6 +84,8 @@ export default function CompanyDashboard() {
   const [nwContent, setNwContent] = useState('');
   const [nwDate, setNwDate] = useState('');
   const [creatingNewsletter, setCreatingNewsletter] = useState(false);
+  const [nwPrompt, setNwPrompt] = useState('');
+  const [generatingAI, setGeneratingAI] = useState(false);
   const [editingNewsletterId, setEditingNewsletterId] = useState(null);
   const [showViewNewsletter, setShowViewNewsletter] = useState(false);
   const [viewNewsletter, setViewNewsletter] = useState(null);
@@ -1288,6 +1290,36 @@ export default function CompanyDashboard() {
                 <input required value={nwSummary} onChange={e => setNwSummary(e.target.value)} className="w-full px-3 py-2 rounded border" />
               </div>
               <div>
+                <label className="block text-sm font-medium mb-1">AI Prompt (optional)</label>
+                <textarea value={nwPrompt} onChange={e => setNwPrompt(e.target.value)} rows={3} placeholder="Give instructions for AI to generate title, summary and HTML content" className="w-full px-3 py-2 rounded border mb-2" />
+                <div className="flex gap-2 mb-3">
+                  <button type="button" disabled={generatingAI || !nwPrompt.trim()} onClick={async () => {
+                    setGeneratingAI(true);
+                    try {
+                      const token = localStorage.getItem('token');
+                      const resp = await fetch('http://localhost:5000/api/newsletters/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                        body: JSON.stringify({ prompt: nwPrompt })
+                      });
+                      const data = await resp.json();
+                      if (resp.ok && data.newsletter) {
+                        setNwTitle(data.newsletter.title || '');
+                        setNwSummary(data.newsletter.summary || '');
+                        setNwContent(data.newsletter.content || '');
+                      } else {
+                        alert(data.message || 'AI generation failed');
+                      }
+                    } catch (err) {
+                      console.error('AI generation request failed', err);
+                      alert('AI generation failed');
+                    } finally {
+                      setGeneratingAI(false);
+                    }
+                  }} className="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600">{generatingAI ? 'Generating...' : 'Generate with AI'}</button>
+                  <button type="button" onClick={() => { setNwPrompt(''); setNwTitle(''); setNwSummary(''); setNwContent(''); }} className="px-3 py-1 rounded border">Clear</button>
+                </div>
+
                 <label className="block text-sm font-medium mb-1">Content</label>
                 <textarea required value={nwContent} onChange={e => setNwContent(e.target.value)} rows={6} className="w-full px-3 py-2 rounded border" />
               </div>
