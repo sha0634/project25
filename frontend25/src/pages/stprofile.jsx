@@ -17,12 +17,47 @@ export default function StudentProfile() {
     image: null,
     skills: [],
     qualifications: "",
+    location: '',
+    timezone: '',
+    emailVerified: false,
+    phoneVerified: false,
+    // Role & Goal
+    currentStatus: '',
+    targetRole: '',
+    primaryGoal: '',
+    // Availability
+    availableStartDate: '',
+    weeklyAvailabilityHours: '',
+    commitmentDurationWeeks: '',
+    canWorkDuringExams: false,
+    // Education
+    highestEducationLevel: '',
+    degreeProgram: '',
+    institutionName: '',
+    educationStartYear: '',
+    educationEndYear: '',
+    educationCGPA: '',
+    // Top Skills (limited 5)
+    topSkills: [],
+    // Experience
+    priorInternship: { hasInternship: false, company: '', role: '', durationWeeks: '' },
+    priorWorkExperience: { hasWorkExperience: false, title: '', durationWeeks: '' },
+    // Links
+    links: { github: '', portfolio: '', linkedIn: '' },
+    // Preferences
+    internshipTypePreference: '',
+    workModePreference: '',
+    preferredDomains: [],
+    preferredCompanySize: '',
+    // Declarations
+    declarations: { informationAccuracy: false, consentToSkillAssessment: false, consentToFeedbackScoring: false },
   });
 
   const [appliedCompanies, setAppliedCompanies] = useState([]);
 
   const [cvFile, setCvFile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [microtasks, setMicrotasks] = useState([]);
 
   // Fetch profile data on mount
   useEffect(() => {
@@ -51,6 +86,40 @@ export default function StudentProfile() {
             image: imageUrl,
             skills: profile.skills || [],
             qualifications: profile.qualifications || "",
+            location: profile.location || '',
+            timezone: profile.timezone || '',
+            emailVerified: !!profile.emailVerified,
+            phoneVerified: !!profile.phoneVerified,
+            // Role & Goal
+            currentStatus: profile.currentStatus || '',
+            targetRole: profile.targetRole || '',
+            primaryGoal: profile.primaryGoal || '',
+            // Availability
+            availableStartDate: (profile.availability && profile.availability.startDate) || '',
+            weeklyAvailabilityHours: (profile.availability && profile.availability.hoursPerWeek) || '',
+            commitmentDurationWeeks: (profile.availability && profile.availability.commitmentDurationWeeks) || '',
+            canWorkDuringExams: (profile.availability && profile.availability.canWorkDuringExams) || false,
+            // Education
+            highestEducationLevel: profile.highestEducationLevel || '',
+            degreeProgram: profile.degreeProgram || '',
+            institutionName: profile.institutionName || '',
+            educationStartYear: profile.educationStartYear || '',
+            educationEndYear: profile.educationEndYear || '',
+            educationCGPA: profile.educationCGPA || '',
+            // Top Skills
+            topSkills: profile.topSkills || [],
+            // Experience
+            priorInternship: profile.priorInternship || { hasInternship: false, company: '', role: '', durationWeeks: '' },
+            priorWorkExperience: profile.priorWorkExperience || { hasWorkExperience: false, title: '', durationWeeks: '' },
+            // Links
+            links: profile.links || { github: '', portfolio: '', linkedIn: '' },
+            // Preferences
+            internshipTypePreference: profile.internshipTypePreference || '',
+            workModePreference: profile.workModePreference || '',
+            preferredDomains: profile.preferredDomains || [],
+            preferredCompanySize: profile.preferredCompanySize || '',
+            // Declarations
+            declarations: profile.declarations || { informationAccuracy: false, consentToSkillAssessment: false, consentToFeedbackScoring: false },
           });
 
           if (profile.resume) {
@@ -84,7 +153,23 @@ export default function StudentProfile() {
 
     fetchProfile();
     fetchApplications();
+    fetchMicrotasks();
   }, [user]);
+
+  const fetchMicrotasks = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/internships/student/microtasks', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMicrotasks(data.tasks || []);
+      }
+    } catch (err) {
+      console.error('Error fetching microtasks:', err);
+    }
+  };
 
   // Save profile data
   const handleSaveProfile = async () => {
@@ -101,8 +186,42 @@ export default function StudentProfile() {
           fullName: profileData.name,
           phone: profileData.phone,
           bio: profileData.bio,
+          location: profileData.location,
+          timezone: profileData.timezone,
+          emailVerified: profileData.emailVerified,
+          phoneVerified: profileData.phoneVerified,
           skills: profileData.skills,
           qualifications: profileData.qualifications,
+          // Role & Goal
+          currentStatus: profileData.currentStatus,
+          targetRole: profileData.targetRole,
+          primaryGoal: profileData.primaryGoal,
+          // Availability
+          availableStartDate: profileData.availableStartDate,
+          weeklyAvailabilityHours: profileData.weeklyAvailabilityHours,
+          commitmentDurationWeeks: profileData.commitmentDurationWeeks,
+          canWorkDuringExams: profileData.canWorkDuringExams,
+          // Education
+          highestEducationLevel: profileData.highestEducationLevel,
+          degreeProgram: profileData.degreeProgram,
+          institutionName: profileData.institutionName,
+          educationStartYear: profileData.educationStartYear,
+          educationEndYear: profileData.educationEndYear,
+          educationCGPA: profileData.educationCGPA,
+          // Top Skills
+          topSkills: profileData.topSkills,
+          // Experience
+          priorInternship: profileData.priorInternship,
+          priorWorkExperience: profileData.priorWorkExperience,
+          // Links
+          links: profileData.links,
+          // Preferences
+          internshipTypePreference: profileData.internshipTypePreference,
+          workModePreference: profileData.workModePreference,
+          preferredDomains: profileData.preferredDomains,
+          preferredCompanySize: profileData.preferredCompanySize,
+          // Declarations
+          declarations: profileData.declarations
         }),
       });
 
@@ -431,41 +550,156 @@ export default function StudentProfile() {
           <div className="flex-1">
             {isEditing ? (
               <div className="grid gap-3">
-                <input
-                  name="name"
-                  value={profileData.name}
-                  onChange={handleInput}
-                  className={`border rounded-lg p-2 ${inputTheme}`}
-                />
-                <input
-                  name="email"
-                  value={profileData.email}
-                  onChange={handleInput}
-                  className={`border rounded-lg p-2 ${inputTheme}`}
-                />
-                <input
-                  name="phone"
-                  value={profileData.phone}
-                  onChange={handleInput}
-                  className={`border rounded-lg p-2 ${inputTheme}`}
-                />
-                <textarea
-                  name="bio"
-                  value={profileData.bio}
-                  onChange={handleInput}
-                  className={`border rounded-lg p-2 ${inputTheme}`}
-                />
+                {/* Basic Info */}
+                <input name="name" value={profileData.name} onChange={handleInput} placeholder="Full name" className={`border rounded-lg p-2 ${inputTheme}`} />
+                <div className="grid grid-cols-2 gap-3">
+                  <input name="email" value={profileData.email} readOnly placeholder="Email" className={`border rounded-lg p-2 ${inputTheme} opacity-70`} />
+                  <div className="flex items-center gap-3">
+                    <input name="phone" value={profileData.phone} onChange={handleInput} placeholder="Phone" className={`border rounded-lg p-2 ${inputTheme} w-full`} />
+                    <div className="text-sm">
+                      {profileData.emailVerified ? <span className="text-green-600">Email ✓</span> : <span className="text-yellow-600">Email unverified</span>}
+                      <br />
+                      {profileData.phoneVerified ? <span className="text-green-600">Phone ✓</span> : <span className="text-yellow-600">Phone unverified</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <input name="location" value={profileData.location || ''} onChange={handleInput} placeholder="Location (City, Country)" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input name="timezone" value={profileData.timezone || ''} onChange={handleInput} placeholder="Timezone (e.g. UTC+5:30)" className={`border rounded-lg p-2 ${inputTheme}`} />
+                </div>
+
+                <textarea name="bio" value={profileData.bio} onChange={handleInput} placeholder="Short bio / summary" className={`border rounded-lg p-2 ${inputTheme}`} />
+
+                {/* Role & Goal */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Current Status</label>
+                  <select name="currentStatus" value={profileData.currentStatus} onChange={handleInput} className={`border rounded-lg p-2 ${inputTheme}`}>
+                    <option value="">Select status</option>
+                    <option value="Student">Student</option>
+                    <option value="Graduate">Graduate</option>
+                    <option value="Career Switcher">Career Switcher</option>
+                  </select>
+                  <input name="targetRole" value={profileData.targetRole} onChange={handleInput} placeholder="Target role" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input name="primaryGoal" value={profileData.primaryGoal} onChange={handleInput} placeholder="Primary goal" className={`border rounded-lg p-2 ${inputTheme}`} />
+                </div>
+
+                {/* Availability */}
+                <div className="grid grid-cols-3 gap-3">
+                  <input type="date" name="availableStartDate" value={profileData.availableStartDate || ''} onChange={(e)=>setProfileData(prev=>({...prev, availableStartDate: e.target.value}))} className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input type="number" min="0" name="weeklyAvailabilityHours" value={profileData.weeklyAvailabilityHours || ''} onChange={(e)=>setProfileData(prev=>({...prev, weeklyAvailabilityHours: e.target.value}))} placeholder="Hours/week" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input type="number" min="0" name="commitmentDurationWeeks" value={profileData.commitmentDurationWeeks || ''} onChange={(e)=>setProfileData(prev=>({...prev, commitmentDurationWeeks: e.target.value}))} placeholder="Commitment (weeks)" className={`border rounded-lg p-2 ${inputTheme}`} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={!!profileData.canWorkDuringExams} onChange={(e)=>setProfileData(prev=>({...prev, canWorkDuringExams: e.target.checked}))} /> Can work during exams?</label>
+                </div>
+
+                {/* Education (structured) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <input name="highestEducationLevel" value={profileData.highestEducationLevel || ''} onChange={handleInput} placeholder="Highest education level" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input name="degreeProgram" value={profileData.degreeProgram || ''} onChange={handleInput} placeholder="Degree / Program" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input name="institutionName" value={profileData.institutionName || ''} onChange={handleInput} placeholder="Institution" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <div className="flex gap-3">
+                    <input name="educationStartYear" value={profileData.educationStartYear || ''} onChange={handleInput} placeholder="Start Year" className={`border rounded-lg p-2 ${inputTheme} w-1/2`} />
+                    <input name="educationEndYear" value={profileData.educationEndYear || ''} onChange={handleInput} placeholder="End Year" className={`border rounded-lg p-2 ${inputTheme} w-1/2`} />
+                  </div>
+                  <input name="educationCGPA" value={profileData.educationCGPA || ''} onChange={handleInput} placeholder="CGPA / % (optional)" className={`border rounded-lg p-2 ${inputTheme}`} />
+                </div>
+
+                {/* Top 5 Skills */}
+                <div>
+                  <label className="block mb-2 font-medium">Top 5 Skills</label>
+                  <div className="flex flex-wrap gap-2">
+                    {(profileData.topSkills || []).map((s, idx) => (
+                      <div key={idx} className="flex items-center gap-2 border rounded-lg p-2">
+                        <input value={s} onChange={(e)=>{
+                          const newSkills = [...(profileData.topSkills||[])]; newSkills[idx]=e.target.value; setProfileData(prev=>({...prev, topSkills:newSkills}));
+                        }} className={`outline-none ${theme === "light" ? "bg-white text-slate-900" : "bg-slate-700 text-slate-100"} w-40`} />
+                        <button onClick={()=>{
+                          const newSkills = (profileData.topSkills||[]).filter((_,i)=>i!==idx); setProfileData(prev=>({...prev, topSkills:newSkills}));
+                        }} className="text-red-500">×</button>
+                      </div>
+                    ))}
+                    {(profileData.topSkills||[]).length < 5 && (
+                      <button onClick={()=>setProfileData(prev=>({...prev, topSkills: [...(prev.topSkills||[]), '']}))} className="px-3 py-1 border rounded-lg">+ Add</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Experience (optional) */}
+                <div className="grid gap-2">
+                  <label className="font-medium">Prior Internship</label>
+                  <div className="flex gap-2 items-center">
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={profileData.priorInternship?.hasInternship} onChange={(e)=>setProfileData(prev=>({...prev, priorInternship: {...(prev.priorInternship||{}), hasInternship: e.target.checked}}))} /> Had internship?</label>
+                    {profileData.priorInternship?.hasInternship && (
+                      <>
+                        <input placeholder="Company" value={profileData.priorInternship.company} onChange={(e)=>setProfileData(prev=>({...prev, priorInternship: {...(prev.priorInternship||{}), company: e.target.value}}))} className={`border rounded-lg p-2 ${inputTheme}`} />
+                        <input placeholder="Role" value={profileData.priorInternship.role} onChange={(e)=>setProfileData(prev=>({...prev, priorInternship: {...(prev.priorInternship||{}), role: e.target.value}}))} className={`border rounded-lg p-2 ${inputTheme}`} />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="font-medium">Prior Work Experience</label>
+                  <div className="flex gap-2 items-center">
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={profileData.priorWorkExperience?.hasWorkExperience} onChange={(e)=>setProfileData(prev=>({...prev, priorWorkExperience: {...(prev.priorWorkExperience||{}), hasWorkExperience: e.target.checked}}))} /> Has prior work?</label>
+                    {profileData.priorWorkExperience?.hasWorkExperience && (
+                      <>
+                        <input placeholder="Title" value={profileData.priorWorkExperience.title} onChange={(e)=>setProfileData(prev=>({...prev, priorWorkExperience: {...(prev.priorWorkExperience||{}), title: e.target.value}}))} className={`border rounded-lg p-2 ${inputTheme}`} />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Links */}
+                <div className="grid gap-2">
+                  <input name="links.github" value={profileData.links?.github || ''} onChange={(e)=>setProfileData(prev=>({...prev, links: {...(prev.links||{}), github: e.target.value}}))} placeholder="GitHub URL" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input name="links.portfolio" value={profileData.links?.portfolio || ''} onChange={(e)=>setProfileData(prev=>({...prev, links: {...(prev.links||{}), portfolio: e.target.value}}))} placeholder="Portfolio URL (optional)" className={`border rounded-lg p-2 ${inputTheme}`} />
+                  <input name="links.linkedIn" value={profileData.links?.linkedIn || ''} onChange={(e)=>setProfileData(prev=>({...prev, links: {...(prev.links||{}), linkedIn: e.target.value}}))} placeholder="LinkedIn (optional)" className={`border rounded-lg p-2 ${inputTheme}`} />
+                </div>
+
+                {/* Preferences */}
+                <div className="grid grid-cols-3 gap-3">
+                  <select name="internshipTypePreference" value={profileData.internshipTypePreference || ''} onChange={handleInput} className={`border rounded-lg p-2 ${inputTheme}`}>
+                    <option value="">Internship type</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Unpaid">Unpaid</option>
+                  </select>
+                  <select name="workModePreference" value={profileData.workModePreference || ''} onChange={handleInput} className={`border rounded-lg p-2 ${inputTheme}`}>
+                    <option value="">Work mode</option>
+                    <option value="Remote">Remote</option>
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="Onsite">Onsite</option>
+                  </select>
+                  <input name="preferredCompanySize" value={profileData.preferredCompanySize || ''} onChange={handleInput} placeholder="Preferred company size" className={`border rounded-lg p-2 ${inputTheme}`} />
+                </div>
+
+                {/* Declarations */}
+                <div className="grid gap-2 text-sm">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={profileData.declarations?.informationAccuracy} onChange={(e)=>setProfileData(prev=>({...prev, declarations: {...(prev.declarations||{}), informationAccuracy: e.target.checked}}))} /> I confirm the information is accurate</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={profileData.declarations?.consentToSkillAssessment} onChange={(e)=>setProfileData(prev=>({...prev, declarations: {...(prev.declarations||{}), consentToSkillAssessment: e.target.checked}}))} /> I consent to skill assessments</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={profileData.declarations?.consentToFeedbackScoring} onChange={(e)=>setProfileData(prev=>({...prev, declarations: {...(prev.declarations||{}), consentToFeedbackScoring: e.target.checked}}))} /> I consent to feedback & scoring</label>
+                </div>
               </div>
             ) : (
               <div>
                 <h2 className="text-2xl font-semibold">{profileData.name}</h2>
-                <p className="mt-1">
-                  <strong>Email:</strong> {profileData.email}
-                </p>
-                <p>
-                  <strong>Phone:</strong> {profileData.phone}
-                </p>
-                <p className="mt-2">{profileData.bio}</p>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <p><strong>Email:</strong> {profileData.email} </p>
+                    <p><strong>Phone:</strong> {profileData.phone} </p>
+                    <p><strong>Location:</strong> {profileData.location}</p>
+                    <p><strong>Timezone:</strong> {profileData.timezone}</p>
+                    <p className="mt-2">{profileData.bio}</p>
+                  </div>
+                  <div>
+                    <p><strong>Current Status:</strong> {profileData.currentStatus}</p>
+                    <p><strong>Target Role:</strong> {profileData.targetRole}</p>
+                    <p><strong>Availability:</strong> {profileData.weeklyAvailabilityHours ? `${profileData.weeklyAvailabilityHours} hrs/week` : '—'} starting {profileData.availableStartDate || '—'}</p>
+                    <p><strong>Top Skills:</strong> {(profileData.topSkills||[]).join(', ')}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -619,9 +853,124 @@ export default function StudentProfile() {
             </tbody>
           </table>
         </div>
+
+        {/* Microtasks */}
+        <div className={`p-6 mt-6 rounded-xl shadow-md border ${cardTheme}`}>
+          <h3 className="text-xl font-semibold mb-3">Assigned Microtasks</h3>
+          {microtasks.length === 0 ? (
+            <p className="text-slate-500">No microtasks assigned.</p>
+          ) : (
+            <div className="space-y-3">
+              {microtasks.map((t) => (
+                <div key={t.taskId} className={`p-4 rounded-lg border ${cardTheme}`}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold">{t.title}</p>
+                      <p className="text-sm text-slate-600">For: {t.internshipTitle}</p>
+                      <p className="text-xs text-slate-500">Due: {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : '—'}</p>
+                      <p className="mt-2">{t.instructions}</p>
+                      {t.submission ? (
+                        <div className="mt-2 text-sm">
+                          <p>Submitted: {t.submission.submittedAt ? new Date(t.submission.submittedAt).toLocaleString() : '—'}</p>
+                          <p>Type: {t.submission.submissionType}</p>
+                          <p>Content: {typeof t.submission.content === 'string' ? (<a href={t.submission.content} target="_blank" rel="noreferrer">Link</a>) : JSON.stringify(t.submission.content)}</p>
+                        </div>
+                      ) : (
+                        <MicrotaskSubmit key={t.taskId} task={t} onSubmitted={fetchMicrotasks} />
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm">Status: {t.status}</p>
+                      {t.score !== undefined && <p className="text-sm">Score: {t.score}</p>}
+                      {t.feedback && <p className="text-sm">Feedback: {t.feedback}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Separate component for submitting a microtask
+function MicrotaskSubmit({ task, onSubmitted }) {
+  const [link, setLink] = React.useState('');
+  const [submitting, setSubmitting] = React.useState(false);
+  const [answers, setAnswers] = React.useState(() => (task.quizQuestions ? Array(task.quizQuestions.length).fill(null) : []));
+
+  const handleSubmit = async () => {
+    try {
+      setSubmitting(true);
+      const token = localStorage.getItem('token');
+      let body;
+      let headers = { 'Authorization': `Bearer ${token}` };
+
+      if (task.type === 'quiz') {
+        // ensure all answers provided
+        const unanswered = answers.some(a => a === null || typeof a === 'undefined');
+        if (unanswered) return alert('Please answer all questions');
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({ submissionType: 'answers', content: { answers } });
+      } else {
+        if (!link) return alert('Provide a link or content');
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({ submissionType: 'link', content: link });
+      }
+
+      const res = await fetch(`http://localhost:5000/api/internships/${task.internshipId}/microtasks/${task.taskId}/submit`, {
+        method: 'POST',
+        headers,
+        body
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || 'Failed to submit');
+        return;
+      }
+      alert('Submitted');
+      onSubmitted && onSubmitted();
+    } catch (err) {
+      console.error('Submit microtask error:', err);
+      alert('Error submitting microtask');
+    } finally { setSubmitting(false); }
+  };
+
+  // render quiz UI when appropriate
+  if (task.type === 'quiz') {
+    return (
+      <div className="mt-3">
+        {(task.quizQuestions || []).map((q, idx) => (
+          <div key={idx} className="mb-3">
+            <p className="font-medium">{idx + 1}. {q.question}</p>
+            <div className="flex gap-3 mt-2">
+              { (q.options || []).map((opt, oi) => (
+                <label key={oi} className="flex items-center gap-2">
+                  <input type="radio" name={`q_${task.taskId}_${idx}`} checked={answers[idx]===oi} onChange={()=>{ const copy=[...answers]; copy[idx]=oi; setAnswers(copy); }} />
+                  <span>{opt}</span>
+                </label>
+              )) }
+            </div>
+          </div>
+        ))}
+        <div className="flex justify-end mt-2">
+          <button onClick={handleSubmit} disabled={submitting} className="px-3 py-1 bg-[#443097] text-white rounded">{submitting ? 'Submitting...' : 'Submit Quiz'}</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <input value={link} onChange={(e)=>setLink(e.target.value)} placeholder="Submission link or text" className="border p-2 rounded w-full" />
+      <div className="flex justify-end mt-2">
+        <button onClick={handleSubmit} disabled={submitting} className="px-3 py-1 bg-[#443097] text-white rounded">{submitting ? 'Submitting...' : 'Submit'}</button>
+      </div>
     </div>
   );
 }

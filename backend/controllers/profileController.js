@@ -286,7 +286,59 @@ exports.updateStudentProfile = async (req, res) => {
             });
         }
 
-        const { fullName, phone, location, bio, profilePicture, education, skills, resume, qualifications } = req.body;
+                const {
+                    fullName,
+                    phone,
+                    location,
+                    bio,
+                    profilePicture,
+                    education,
+                    skills,
+                    resume,
+                    qualifications,
+
+                    // Role & Goal
+                    currentStatus,
+                    targetRole,
+                    primaryGoal,
+
+                    // Availability
+                    availableStartDate,
+                    weeklyAvailabilityHours,
+                    commitmentDurationWeeks,
+                    canWorkDuringExams,
+
+                    // Education (form fields)
+                    highestEducationLevel,
+                    degreeProgram,
+                    institutionName,
+                    educationStartYear,
+                    educationEndYear,
+                    educationCGPA,
+
+                    // Skills (topSkills)
+                    topSkills,
+
+                    // Experience
+                    priorInternship,
+                    priorWorkExperience,
+
+                    // Links
+                    links,
+
+                    // Resume metadata
+                    resumePath,
+                    resumeLastUpdated,
+
+                    // Preferences
+                    internshipTypePreference,
+                    workModePreference,
+                    preferredDomains,
+                    preferredCompanySize,
+
+                    // Declarations
+                    declarations
+                } = req.body;
 
         console.log('========== UPDATE PROFILE REQUEST ==========');
         console.log('User ID:', req.user.id);
@@ -303,6 +355,85 @@ exports.updateStudentProfile = async (req, res) => {
         if (skills !== undefined) user.profile.skills = skills;
         if (resume !== undefined) user.profile.resume = resume;
         if (qualifications !== undefined) user.profile.qualifications = qualifications;
+
+        // Role & Goal
+        if (currentStatus !== undefined) user.profile.currentStatus = currentStatus;
+        if (targetRole !== undefined) user.profile.targetRole = targetRole;
+        if (primaryGoal !== undefined) user.profile.primaryGoal = primaryGoal;
+
+        // Availability (store as flat fields on profile)
+        if (availableStartDate !== undefined) user.profile.availableStartDate = availableStartDate;
+        if (weeklyAvailabilityHours !== undefined) user.profile.weeklyAvailabilityHours = weeklyAvailabilityHours;
+        if (commitmentDurationWeeks !== undefined) user.profile.commitmentDurationWeeks = commitmentDurationWeeks;
+        if (canWorkDuringExams !== undefined) user.profile.canWorkDuringExams = canWorkDuringExams;
+
+        // Timezone & verifications
+        if (timezone !== undefined) user.profile.timezone = timezone;
+        if (emailVerified !== undefined) user.profile.emailVerified = !!emailVerified;
+        if (phoneVerified !== undefined) user.profile.phoneVerified = !!phoneVerified;
+
+        // Education form fields (structured)
+        if (highestEducationLevel !== undefined || degreeProgram !== undefined || institutionName !== undefined || educationStartYear !== undefined || educationEndYear !== undefined || educationCGPA !== undefined) {
+            // keep backward-compatible education array, push or replace first item
+            const eduObj = {
+                degree: degreeProgram || highestEducationLevel || '',
+                institution: institutionName || '',
+                duration: {
+                    start: educationStartYear ? new Date(educationStartYear.toString()) : undefined,
+                    end: educationEndYear ? new Date(educationEndYear.toString()) : undefined
+                },
+                cgpa: educationCGPA || '',
+                verificationStatus: user.profile.education && user.profile.education[0] ? user.profile.education[0].verificationStatus : 'Not Verified'
+            };
+            user.profile.education = [eduObj];
+        }
+
+        // Skills (topSkills) - accept array of strings or objects, normalize to objects and limit to 5
+        if (topSkills !== undefined) {
+            let normalized = [];
+            if (Array.isArray(topSkills)) {
+                if (topSkills.length > 0 && typeof topSkills[0] === 'string') {
+                    normalized = topSkills.map(s => ({ skillName: s, selfRatedLevel: undefined, howLearned: '' }));
+                } else {
+                    // assume already object-shaped
+                    normalized = topSkills.map(s => ({
+                        skillName: s.skillName || s.name || '',
+                        selfRatedLevel: s.selfRatedLevel || s.level || undefined,
+                        howLearned: s.howLearned || s.source || ''
+                    }));
+                }
+            } else if (typeof topSkills === 'string') {
+                normalized = topSkills.split(',').map(s => ({ skillName: s.trim(), selfRatedLevel: undefined, howLearned: '' }));
+            }
+            user.profile.topSkills = normalized.slice(0,5);
+        }
+
+        // Experience
+        if (priorInternship !== undefined) user.profile.priorInternship = priorInternship;
+        if (priorWorkExperience !== undefined) user.profile.priorWorkExperience = priorWorkExperience;
+
+        // Links (structured)
+        if (links !== undefined) {
+            user.profile.links = user.profile.links || {};
+            if (links.github !== undefined) user.profile.links.github = links.github;
+            if (links.portfolio !== undefined) user.profile.links.portfolio = links.portfolio;
+            // accept either linkedIn or linkedin
+            if (links.linkedIn !== undefined) user.profile.links.linkedIn = links.linkedIn;
+            if (links.linkedin !== undefined) user.profile.links.linkedIn = links.linkedin;
+        }
+
+        // Resume metadata
+        if (resumePath !== undefined) user.profile.resumePath = resumePath;
+        if (resumeLastUpdated !== undefined) user.profile.resumeLastUpdated = resumeLastUpdated;
+
+        // Preferences
+        if (internshipTypePreference !== undefined) user.profile.internshipTypePreference = internshipTypePreference;
+        if (workModePreference !== undefined) user.profile.workModePreference = workModePreference;
+        if (preferredDomains !== undefined) user.profile.preferredDomains = preferredDomains;
+        if (preferredCompanySize !== undefined) user.profile.preferredCompanySize = preferredCompanySize;
+
+        // Declarations
+        if (declarations !== undefined) user.profile.declarations = declarations;
 
         await user.save();
 

@@ -69,6 +69,29 @@ const internshipSchema = new mongoose.Schema({
             default: 'Applied'
         }
     }],
+    // Microtasks that company can assign per internship
+    microtasks: [{
+        title: { type: String },
+        type: { type: String, enum: ['quiz', 'github', 'task'], default: 'task' },
+        // For quiz type, store questions and correct answer index
+        quizQuestions: [{
+            question: { type: String },
+            options: [{ type: String }],
+            correctIndex: { type: Number }
+        }],
+        instructions: { type: String },
+        assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // studentId
+        assignedAt: { type: Date },
+        dueDate: { type: Date },
+        submission: {
+            submittedAt: Date,
+            submissionType: { type: String }, // e.g., 'link', 'files', 'answers'
+            content: mongoose.Schema.Types.Mixed // store link or answers object
+        },
+        status: { type: String, enum: ['Assigned', 'Submitted', 'Graded', 'Expired'], default: 'Assigned' },
+        score: Number,
+        feedback: String
+    }],
     createdAt: {
         type: Date,
         default: Date.now

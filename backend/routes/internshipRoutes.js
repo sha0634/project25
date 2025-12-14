@@ -27,5 +27,6 @@ router.get('/company/my-internships', protect, getCompanyInternships);
 
 // Student specific routes
 router.get('/student/my-applications', protect, getStudentApplications);
+router.get('/student/microtasks', protect, require('../controllers/internshipController').getStudentMicrotasks);
 
 module.exports = router;
