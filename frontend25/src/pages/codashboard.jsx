@@ -3,6 +3,7 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download, Bell, Mail, X } from 'lucide-react';
 import io from 'socket.io-client';
+import logo from '../assets/logo.png';
 
 export default function CompanyDashboard() {
   const [activeTab, setActiveTab] = useState("internships"); // internships | applicants | newsletters | profile | about
@@ -377,8 +378,9 @@ export default function CompanyDashboard() {
       {/* NAVBAR */}
       <header className="border-b border-slate-200/60 dark:border-slate-700/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:py-4">
-          <div className="font-semibold text-lg text-[#2b128f] md:text-xl">
-            Placify - Company
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="Placify" className="w-8 h-8 object-contain" />
+            <div className="font-semibold text-lg text-[#2b128f] md:text-xl">Placify</div>
           </div>
 
           {/* Hamburger Button - Mobile Only */}
@@ -756,9 +758,11 @@ export default function CompanyDashboard() {
               <h1 className="text-xl font-semibold md:text-2xl">
                 My Newsletters
               </h1>
-              <button className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5a3ec4] transition">
-                + Create Newsletter
-              </button>
+              <Link to="/createnewsletter">
+                <button className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5a3ec4] transition">
+                  + Create Newsletter
+                </button>
+              </Link>
             </div>
 
             {newsletters.length === 0 ? (
