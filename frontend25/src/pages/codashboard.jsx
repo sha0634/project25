@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Moon, Sun, Megaphone, Users, Newspaper, Target, Phone, MapPin, FileText, User, Download, Bell, Mail, X } from 'lucide-react';
 import io from 'socket.io-client';
 import logo from '../assets/logo.png';
+import { useAuth } from '../context/AuthContext';
 
 export default function CompanyDashboard() {
   const [activeTab, setActiveTab] = useState("internships"); // internships | applicants | newsletters | profile | about
@@ -57,6 +58,13 @@ export default function CompanyDashboard() {
     skills: "",
     applicationDeadline: ""
   });
+  const [showCreateNewsletter, setShowCreateNewsletter] = useState(false);
+  const [nwTitle, setNwTitle] = useState('');
+  const [nwSummary, setNwSummary] = useState('');
+  const [nwContent, setNwContent] = useState('');
+  const [nwDate, setNwDate] = useState('');
+  const [creatingNewsletter, setCreatingNewsletter] = useState(false);
+  const { user } = useAuth();
 
   const lowercaseSearch = search.toLowerCase();
 
@@ -758,11 +766,9 @@ export default function CompanyDashboard() {
               <h1 className="text-xl font-semibold md:text-2xl">
                 My Newsletters
               </h1>
-              <Link to="/createnewsletter">
-                <button className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5a3ec4] transition">
-                  + Create Newsletter
-                </button>
-              </Link>
+              <button onClick={() => setShowCreateNewsletter(true)} className="bg-[#443097] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5a3ec4] transition">
+                + Create Newsletter
+              </button>
             </div>
 
             {newsletters.length === 0 ? (
@@ -990,6 +996,71 @@ export default function CompanyDashboard() {
                 }} className="px-4 py-2 rounded-lg bg-[#443097] text-white">Assign</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Newsletter Modal */}
+      {showCreateNewsletter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowCreateNewsletter(false)}>
+          <div className={`w-full max-w-2xl rounded-xl p-6 ${cardTheme} shadow-lg`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Create Newsletter</h3>
+              <button onClick={() => setShowCreateNewsletter(false)} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><X /></button>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setCreatingNewsletter(true);
+              try {
+                const token = localStorage.getItem('token');
+                const resp = await fetch('http://localhost:5000/api/newsletters', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                  },
+                  body: JSON.stringify({ title: nwTitle, company: (user?.profile?.companyName || user?.profile?.fullName || user?.username), summary: nwSummary, content: nwContent, date: nwDate })
+                });
+
+                const data = await resp.json();
+                if (resp.ok) {
+                  alert('Newsletter created');
+                  setShowCreateNewsletter(false);
+                  setNwTitle(''); setNwSummary(''); setNwContent(''); setNwDate('');
+                  fetchNewsletters();
+                } else {
+                  alert(data.message || 'Failed to create newsletter');
+                }
+              } catch (err) {
+                console.error('Create newsletter error:', err);
+                alert('Failed to create newsletter');
+              } finally {
+                setCreatingNewsletter(false);
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Title</label>
+                <input required value={nwTitle} onChange={e => setNwTitle(e.target.value)} className="w-full px-3 py-2 rounded border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Summary</label>
+                <input required value={nwSummary} onChange={e => setNwSummary(e.target.value)} className="w-full px-3 py-2 rounded border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Content</label>
+                <textarea required value={nwContent} onChange={e => setNwContent(e.target.value)} rows={6} className="w-full px-3 py-2 rounded border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Date</label>
+                <input type="date" value={nwDate} onChange={e => setNwDate(e.target.value)} className="px-3 py-2 rounded border" />
+              </div>
+
+              <div className="flex gap-2">
+                <button disabled={creatingNewsletter} type="submit" className="px-4 py-2 rounded bg-[#443097] text-white">{creatingNewsletter ? 'Creating...' : 'Create'}</button>
+                <button type="button" onClick={() => setShowCreateNewsletter(false)} className="px-4 py-2 rounded border">Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
