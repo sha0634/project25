@@ -257,22 +257,19 @@ export default function CompanyDashboard() {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('token');
     
-    console.log('Socket.io setup - userId:', userId, 'token:', token ? 'exists' : 'missing');
+    
     
     // Define socket logic to use in conditional block
     const setupSocket = () => {
         socketRef.current = io('http://localhost:5000');
         
         socketRef.current.on('connect', () => {
-            console.log('Socket.io connected:', socketRef.current.id);
-            socketRef.current.emit('register', userId);
-            console.log('Registered userId with socket:', userId);
+          socketRef.current.emit('register', userId);
         });
         
         socketRef.current.on('newNotification', (notification) => {
-            console.log('New notification received:', notification);
-            setNotifications(prev => [notification, ...prev]);
-            setUnreadCount(prev => prev + 1);
+          setNotifications(prev => [notification, ...prev]);
+          setUnreadCount(prev => prev + 1);
             
             if (Notification.permission === 'granted') {
                 new Notification(notification.title, {
@@ -283,7 +280,6 @@ export default function CompanyDashboard() {
         });
 
         socketRef.current.on('disconnect', () => {
-            console.log('Socket.io disconnected');
         });
 
         socketRef.current.on('connect_error', (error) => {
@@ -324,7 +320,6 @@ export default function CompanyDashboard() {
 
     return () => {
       if (socketRef.current) {
-        console.log('Disconnecting socket');
         socketRef.current.disconnect();
       }
     };
@@ -423,8 +418,7 @@ export default function CompanyDashboard() {
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     setCreatingCourse(true);
-    // Log selected files for debugging
-    console.log('Creating course — selected video files:', courseFormData.courseVideos);
+    // selected video files available in state
 
     try {
       const token = localStorage.getItem('token');
@@ -493,6 +487,80 @@ export default function CompanyDashboard() {
     setShowApplicantsModal(true);
   };
 
+  const handleApplicantStatusUpdate = async (status) => {
+    if (!selectedInternship || !selectedApplicant) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/internships/${selectedInternship._id}/applicants/${selectedApplicant._id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update status');
+
+      // Update local selectedInternship applicants list
+      const updatedApplicants = (selectedInternship.applicants || []).map(a => {
+        if (String(a._id) === String(selectedApplicant._id)) return { ...a, status };
+        return a;
+      });
+      setSelectedInternship({ ...selectedInternship, applicants: updatedApplicants });
+      // Refresh applicants modal list
+      setShowProfileModal(false);
+      // Optional: refresh company internships to get latest statuses
+      fetchInternships();
+      alert(`Candidate ${status === 'Rejected' ? 'rejected' : 'updated to ' + status}`);
+    } catch (error) {
+      console.error('Status update error:', error);
+      alert('Failed to update applicant status');
+    }
+  };
+
+  // Download or open resume PDF (protected endpoint)
+  const handleDownloadResume = async (student) => {
+    try {
+      const studentId = typeof student === 'string' ? student : (student && (student._id || student.id));
+      if (!studentId) return alert('Student ID not available');
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/profile/student/${studentId}/resume`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.message || 'Failed to download resume');
+      }
+
+      const blob = await res.blob();
+      // Try to read filename from Content-Disposition header
+      const cd = res.headers.get('content-disposition') || '';
+      let filename = '';
+      const fnMatch = cd.match(/filename\*=UTF-8''([^;\n\r]+)/i) || cd.match(/filename="?([^";\n\r]+)"?/i);
+      if (fnMatch) {
+        filename = decodeURIComponent(fnMatch[1]);
+      } else {
+        // fallback: try to use username or generic name
+        filename = `${selectedApplicant?.studentId?.username || 'resume'}`;
+      }
+
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 60 * 1000);
+    } catch (error) {
+      console.error('Download resume error:', error);
+      alert('Failed to download resume');
+    }
+  };
+
   const handleEditCourse = (course) => {
     setEditingCourseId(course._id);
     setExistingCourseVideos(course.videos || []);
@@ -537,6 +605,39 @@ export default function CompanyDashboard() {
     setSelectedApplicant(applicant);
     setShowProfileModal(true);
   };
+
+  // Debug helper removed: no console exposure in production
+  useEffect(() => {}, [showProfileModal, selectedApplicant]);
+
+  // When opening profile modal, if resume not present, try to fetch student profile by id
+  useEffect(() => {
+    const loadMissingStudent = async () => {
+      if (!showProfileModal || !selectedApplicant) return;
+      const student = selectedApplicant.studentId;
+      const studentId = typeof student === 'string' ? student : (student && (student._id || student.id));
+      if (!student) return;
+
+      const hasResume = Boolean(student?.profile?.resume || student?.profile?.resumePath);
+      const isPopulated = typeof student === 'object' && (student.profile || student.email);
+      if (hasResume || isPopulated) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        if (!studentId) return;
+        const res = await fetch(`http://localhost:5000/api/profile/student/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.user) {
+          setSelectedApplicant(prev => ({ ...prev, studentId: data.user }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch student profile by id:', err);
+      }
+    };
+    loadMissingStudent();
+  }, [showProfileModal, selectedApplicant]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -583,7 +684,7 @@ export default function CompanyDashboard() {
 
           <nav className="hidden md:flex items-center gap-2 md:gap-4 text-sm md:text-base">
             {/* Tabs */}
-            {["internships", "courses", "applicants", "newsletters", "about"].map((tab) => (
+            {["internships", "courses", "newsletters", "about"].map((tab) => (
 
               <button
                 key={tab}
@@ -691,7 +792,7 @@ export default function CompanyDashboard() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-slate-200 dark:border-slate-700">
             <nav className="px-4 py-3 space-y-2">
-              {["internships", "courses", "applicants", "newsletters", "about"].map((tab) => (
+              {["internships", "courses", "newsletters", "about"].map((tab) => (
 
                 <button
                   key={tab}
@@ -991,24 +1092,10 @@ export default function CompanyDashboard() {
                     className={`rounded-xl border p-4 shadow-sm ${cardTheme} flex items-center justify-between`}
                   >
                     <div className="flex-1">
-                      <h2 className="text-sm font-semibold md:text-base">
-                        {applicant.studentId?.profile?.fullName || applicant.studentId?.username || 'Unknown'}
-                      </h2>
-                      <p className="text-xs text-[#443097] md:text-sm">
-                        Applied for: {applicant.internshipTitle}
-                      </p>
-                      <p
-                        className={`mt-1 text-xs ${
-                          theme === "light" ? "text-slate-600" : "text-slate-400"
-                        }`}
-                      >
-                        Applied: {new Date(applicant.appliedAt).toLocaleDateString()}
-                      </p>
-                      {applicant.studentId?.email && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          📧 {applicant.studentId.email}
-                        </p>
-                      )}
+                      {/* Only show email, phone and CV to company */}
+                      <p className="text-xs text-slate-600">{applicant.studentId?.email || 'No email'}</p>
+                      <p className="text-xs text-slate-600">{applicant.studentId?.profile?.phone || 'No phone'}</p>
+                      {/* CV link moved to actions column below View Profile button */}
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <span
@@ -1024,13 +1111,7 @@ export default function CompanyDashboard() {
                       >
                         {applicant.status}
                       </span>
-                      <button 
-                        onClick={() => handleViewProfile(applicant)}
-                        className="bg-[#443097] text-white px-4 py-1.5 rounded-lg text-xs hover:bg-[#5a3ec4] flex items-center gap-1"
-                      >
-                        <User className="w-3 h-3" />
-                        View Profile
-                      </button>
+                      {/* View Profile removed — companies see only email/phone/CV */}
                       <button
                         onClick={() => {
                           setMicrotaskAssigning({ internshipId: applicant.internshipId, studentId: applicant.studentId?._id });
@@ -1819,11 +1900,7 @@ export default function CompanyDashboard() {
               <h4 className="font-semibold">Enrolled Students</h4>
               <p className="text-sm text-slate-600">{(selectedCourseDetails.enrolledStudents || []).length} enrolled</p>
               {(selectedCourseDetails.enrolledStudents || []).length > 0 && (
-                <div className="mt-2 text-sm space-y-1">
-                  {(selectedCourseDetails.enrolledStudents || []).map((s, idx) => (
-                    <div key={idx} className="px-3 py-1 rounded bg-slate-100 dark:bg-slate-800">{typeof s === 'string' ? s : (s._id || s.toString())}</div>
-                  ))}
-                </div>
+                <EnrolledStudentsList courseId={selectedCourseDetails._id} />
               )}
             </div>
 
@@ -1837,7 +1914,7 @@ export default function CompanyDashboard() {
       {/* View Profile Modal */}
       {showProfileModal && selectedApplicant && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className={`rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${theme === "light" ? "bg-white" : "bg-slate-800"}`}>
+          <div className={`rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto ${theme === "light" ? "bg-white" : "bg-slate-800"}`}>
             <div className="sticky top-0 bg-[#443097] text-white p-6 rounded-t-2xl">
               <div className="flex justify-between items-start">
                 <div>
@@ -1845,20 +1922,25 @@ export default function CompanyDashboard() {
                     {selectedApplicant.studentId?.profile?.fullName || selectedApplicant.studentId?.username}
                   </h2>
                   <p className="text-sm text-indigo-200 mt-1">
-                    Applied for: {selectedApplicant.internshipTitle}
+                    Applied for: {selectedInternship?.title || selectedApplicant.internshipTitle}
                   </p>
+                  {/* CV presence handled in resume section; no top 'No CV' badge */}
                 </div>
-                <button
-                  onClick={() => setShowProfileModal(false)}
-                  className="text-white hover:bg-white/20 rounded-full p-2"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* Top CV quick-action removed to avoid parsed-text download and 'No CV' label */}
+
+                  <button
+                    onClick={() => setShowProfileModal(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Contact Information */}
+              {/* Contact Information (only) */}
               <div>
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-[#443097]" />
@@ -1867,93 +1949,37 @@ export default function CompanyDashboard() {
                 <div className="space-y-2 text-sm">
                   <p><strong>Email:</strong> {selectedApplicant.studentId?.email || 'N/A'}</p>
                   <p><strong>Phone:</strong> {selectedApplicant.studentId?.profile?.phone || 'N/A'}</p>
-                  <p><strong>Location:</strong> {selectedApplicant.studentId?.profile?.location || 'N/A'}</p>
                 </div>
               </div>
 
-              {/* Application Status */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Application Status</h3>
-                <div className="flex items-center gap-3">
-                  <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                    selectedApplicant.status === "Shortlisted"
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                      : selectedApplicant.status === "Accepted"
-                      ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                      : selectedApplicant.status === "Rejected"
-                      ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-                      : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
-                  }`}>
-                    {selectedApplicant.status}
-                  </span>
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    Applied on {new Date(selectedApplicant.appliedAt).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Bio */}
-              {selectedApplicant.studentId?.profile?.bio && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">About</h3>
-                  <p className="text-sm text-slate-700 dark:text-slate-300">
-                    {selectedApplicant.studentId.profile.bio}
-                  </p>
-                </div>
-              )}
-
-              {/* Skills */}
-              {selectedApplicant.studentId?.profile?.skills && selectedApplicant.studentId.profile.skills.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Skills</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedApplicant.studentId.profile.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full text-sm"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Education/Qualifications */}
-              {selectedApplicant.studentId?.profile?.qualifications && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Qualifications</h3>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">
-                    {selectedApplicant.studentId.profile.qualifications}
-                  </p>
-                </div>
-              )}
+                {/* Candidate contact and resume info shown above */}
 
               {/* Resume Download */}
-              {selectedApplicant.studentId?.profile?.resume && (
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold mb-3">Resume / CV</h3>
-                  <a
-                    href={`http://localhost:5000${selectedApplicant.studentId.profile.resume}`}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#443097] text-white rounded-lg hover:bg-[#36217c] transition"
-                  >
-                    <Download className="w-5 h-5" />
-                    Download Resume
-                  </a>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Click to download the candidate's resume in PDF format
-                  </p>
-                </div>
+              {(selectedApplicant.studentId?.profile?.resume || selectedApplicant.studentId?.profile?.resumePath || selectedApplicant.studentId?.profile?.resumeText) && (
+                (() => {
+                  const r = (selectedApplicant.studentId.profile.resume || selectedApplicant.studentId.profile.resumePath || '');
+                  const href = r && r.startsWith('http') ? r : (r ? `http://localhost:5000/${r.replace(/^\/+/, '')}` : null);
+                  const resumeText = selectedApplicant.studentId?.profile?.resumeText || null;
+                  return (
+                    <div className="border-t pt-4">
+                      <h3 className="text-lg font-semibold mb-3">Resume / CV</h3>
+                      <>
+                        <button
+                          onClick={() => handleDownloadResume(selectedApplicant.studentId)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-[#443097] text-white rounded-lg hover:bg-[#36217c] transition"
+                        >
+                          <Download className="w-5 h-5" />
+                          Download Resume (PDF)
+                        </button>
+
+                        
+                      </>
+                    </div>
+                  );
+                })()
               )}
 
-              {/* Actions */}
+              {/* Actions: Shortlist / Reject */}
               <div className="flex gap-3 pt-6 border-t">
                 <button
                   onClick={() => setShowProfileModal(false)}
@@ -1962,9 +1988,16 @@ export default function CompanyDashboard() {
                   Close
                 </button>
                 <button
+                  onClick={() => handleApplicantStatusUpdate('Shortlisted')}
                   className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                 >
-                  Shortlist Candidate
+                  Shortlist
+                </button>
+                <button
+                  onClick={() => handleApplicantStatusUpdate('Rejected')}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                >
+                  Reject
                 </button>
               </div>
             </div>
@@ -2292,6 +2325,62 @@ export default function CompanyDashboard() {
         </div>
       )}
       
+    </div>
+  );
+}
+
+// Component: fetch and display enrolled student summaries (name, email, phone, resume)
+function EnrolledStudentsList({ courseId }) {
+  const [students, setStudents] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`http://localhost:5000/api/courses/${courseId}/enrolled`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if (mounted) setStudents(data.students || []);
+        } else {
+          console.warn('Failed to load enrolled students', data.message);
+          if (mounted) setStudents([]);
+        }
+      } catch (err) {
+        console.error('Error fetching enrolled students', err);
+        if (mounted) setStudents([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [courseId]);
+
+  if (loading) return <p className="text-sm">Loading students...</p>;
+  if (!students || students.length === 0) return <p className="text-sm text-slate-500">No enrolled students yet.</p>;
+
+  return (
+    <div className="mt-2 text-sm space-y-2">
+      {students.map((s) => (
+        <div key={s._id} className="p-3 rounded bg-slate-100 dark:bg-slate-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">{s.name || 'Unknown'}</div>
+              <div className="text-xs text-slate-600">{s.email || ''}{s.phone ? ` · ${s.phone}` : ''}</div>
+            </div>
+            {s.resume ? (
+              <a href={s.resume.startsWith('http') ? s.resume : `http://localhost:5000/${s.resume.replace(/^\/+/, '')}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">View CV</a>
+            ) : (
+              <></>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

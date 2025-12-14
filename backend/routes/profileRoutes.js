@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
     getStudentProfile,
+    getStudentProfileById,
+    getStudentResumePdf,
     updateStudentProfile,
     getCompanyProfile,
     updateCompanyProfile,
@@ -72,6 +74,10 @@ router.post('/upload-picture', protect, (req, res, next) => {
 
 // Student profile routes
 router.get('/student', protect, getStudentProfile);
+// Get other student's limited profile (company view)
+router.get('/student/:id', protect, getStudentProfileById);
+// Serve resume PDF (original file if present, or generated from parsed text)
+router.get('/student/:id/resume', protect, getStudentResumePdf);
 router.put('/student', protect, updateStudentProfile);
 router.post('/student/upload-resume', protect, (req, res, next) => {
     upload.single('resume')(req, res, (err) => {

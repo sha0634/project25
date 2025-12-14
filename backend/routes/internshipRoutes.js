@@ -7,6 +7,7 @@ const {
     updateInternship,
     deleteInternship,
     applyToInternship,
+    updateApplicantStatus,
     getCompanyInternships,
     getStudentApplications
 } = require('../controllers/internshipController');
@@ -21,6 +22,9 @@ router.post('/', protect, createInternship);
 router.put('/:id', protect, updateInternship);
 router.delete('/:id', protect, deleteInternship);
 router.post('/:id/apply', protect, applyToInternship);
+
+// Update applicant status (company only)
+router.put('/:id/applicants/:applicantId/status', protect, updateApplicantStatus);
 
 // Company specific routes
 router.get('/company/my-internships', protect, getCompanyInternships);

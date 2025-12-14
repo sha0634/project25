@@ -794,6 +794,64 @@ exports.generateQuiz = async (req, res) => {
     }
 };
 
+// @desc    Update an applicant's status (Shortlisted/Rejected/Accepted)
+// @route   PUT /api/internships/:id/applicants/:applicantId/status
+// @access  Private (Company only)
+exports.updateApplicantStatus = async (req, res) => {
+    try {
+        const internship = await Internship.findById(req.params.id);
+        if (!internship) return res.status(404).json({ success: false, message: 'Internship not found' });
+        if (internship.companyId.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+        const { status } = req.body;
+        if (!['Shortlisted', 'Rejected', 'Accepted', 'Applied'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status value' });
+        }
+
+        const applicant = internship.applicants.id(req.params.applicantId);
+        if (!applicant) return res.status(404).json({ success: false, message: 'Applicant not found' });
+
+        applicant.status = status;
+        await internship.save();
+
+        // Create a notification for the student
+        const Notification = require('../models/Notification');
+        const studentId = applicant.studentId;
+        const message = status === 'Rejected'
+            ? `Your application for ${internship.title} was rejected.`
+            : `Your application for ${internship.title} was updated: ${status}.`;
+
+        const notification = await Notification.create({
+            recipientId: studentId,
+            type: 'status_update',
+            title: 'Application Update',
+            message,
+            relatedInternship: internship._id,
+            relatedStudent: studentId
+        });
+
+        // Emit real-time notification if student is connected
+        const io = req.app.get('io');
+        const connectedUsers = req.app.get('connectedUsers');
+        const studentSocketId = connectedUsers.get(studentId.toString());
+        if (studentSocketId) {
+            io.to(studentSocketId).emit('newNotification', {
+                id: notification._id,
+                type: notification.type,
+                title: notification.title,
+                message: notification.message,
+                createdAt: notification.createdAt,
+                read: false
+            });
+        }
+
+        res.status(200).json({ success: true, message: 'Applicant status updated', applicant });
+    } catch (error) {
+        console.error('Update applicant status error:', error);
+        res.status(500).json({ success: false, message: 'Error updating applicant status', error: error.message });
+    }
+};
+
 // Public version of generateQuiz (no auth/ownership check) - returns quiz based on internship JD
 exports.generateQuizPublic = async (req, res) => {
     try {

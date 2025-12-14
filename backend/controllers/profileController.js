@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
+const PDFDocument = require('pdfkit');
 const { parseCV } = require('../utils/cvParser');
 
 // @desc    Upload resume
@@ -262,6 +264,93 @@ exports.getStudentProfile = async (req, res) => {
             message: 'Error fetching profile',
             error: error.message
         });
+    }
+};
+
+// @desc    Get another student's limited profile (for companies viewing applicants)
+// @route   GET /api/profile/student/:id
+// @access  Private (company or student)
+exports.getStudentProfileById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('username email userType profile');
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Only allow companies or the student themselves to read this
+        if (req.user.userType !== 'company' && req.user.id !== req.params.id) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        res.status(200).json({ success: true, user });
+    } catch (error) {
+        console.error('Get student profile by id error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching profile', error: error.message });
+    }
+};
+
+// @desc    Get student's resume as PDF (serve file or generate from parsed text)
+// @route   GET /api/profile/student/:id/resume
+// @access  Private (company or the student)
+exports.getStudentResumePdf = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('profile email username userType');
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        if (req.user.userType !== 'company' && req.user.id !== req.params.id) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        const resumePath = user.profile?.resume || user.profile?.resumePath || null;
+        const resumeText = user.profile?.resumeText || null;
+
+        // If resume file exists on disk, force a download of the original file
+        if (resumePath) {
+            const localPath = path.join(__dirname, '..', resumePath.replace(/^\/+/, ''));
+            if (fsSync.existsSync(localPath)) {
+                // Use res.download to set appropriate headers so browsers download the file
+                const filename = path.basename(localPath);
+                return res.download(localPath, filename, (err) => {
+                    if (err) {
+                        console.error('Error sending resume file:', err);
+                        // If download fails, fall back to sending the file stream
+                        try {
+                            return res.sendFile(localPath);
+                        } catch (sendErr) {
+                            console.error('Fallback sendFile error:', sendErr);
+                            return res.status(500).json({ success: false, message: 'Error serving resume file' });
+                        }
+                    }
+                });
+            }
+        }
+
+        // If parsed resume text exists, generate a PDF on the fly
+        if (resumeText) {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="resume-${user._id}.pdf"`);
+
+            const doc = new PDFDocument({ autoFirstPage: true });
+            doc.pipe(res);
+
+            // Simple layout: header and text body
+            doc.fontSize(14).text(user.profile?.fullName || user.username || 'Candidate', { underline: true });
+            doc.moveDown();
+            doc.fontSize(10).text(resumeText, { align: 'left' });
+
+            doc.end();
+            return;
+        }
+
+        return res.status(404).json({ success: false, message: 'No resume available for this user' });
+
+    } catch (error) {
+        console.error('Get student resume PDF error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching resume', error: error.message });
     }
 };
 

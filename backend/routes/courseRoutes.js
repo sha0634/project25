@@ -264,4 +264,38 @@ router.get('/:id/video/:index', protect, async (req, res) => {
   }
 });
 
+// Company-only: get enrolled students summary for a course
+router.get('/:id/enrolled', protect, restrictTo('company'), async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const course = await Course.findById(courseId);
+    if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
+    if (!course.companyId || course.companyId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const studentIds = (course.enrolledStudents || []).map(id => id.toString());
+    if (studentIds.length === 0) return res.json({ success: true, students: [] });
+
+    // Lazy require to avoid circular issues
+    const User = require('../models/User');
+    // Select minimal fields: name, email, phone, resume path
+    const students = await User.find({ _id: { $in: studentIds } }).select('email username profile.fullName profile.phone profile.resume profile.resumePath');
+
+    // Map to safe summary objects
+    const summaries = students.map(s => ({
+      _id: s._id,
+      name: s.profile?.fullName || s.username || '',
+      email: s.email || '',
+      phone: s.profile?.phone || '',
+      resume: s.profile?.resume || s.profile?.resumePath || ''
+    }));
+
+    return res.json({ success: true, students: summaries });
+  } catch (err) {
+    console.error('Fetch enrolled students error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch enrolled students' });
+  }
+});
+
 module.exports = router;
