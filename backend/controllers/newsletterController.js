@@ -77,6 +77,16 @@ exports.createNewsletter = async (req, res) => {
             status: status || 'Published'
         });
 
+        // Emit real-time event to connected clients (students) so they can see new newsletter immediately
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.emit('newNewsletter', newsletter);
+            }
+        } catch (emitErr) {
+            console.error('Error emitting newNewsletter:', emitErr);
+        }
+
         res.status(201).json({
             success: true,
             message: 'Newsletter created successfully',

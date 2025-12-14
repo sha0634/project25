@@ -1,5 +1,6 @@
 // src/StudentDashboard.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
+import io from 'socket.io-client';
 import { Link } from "react-router-dom";
 import { Moon, Sun, DollarSign, Target, Rocket, MapPin, Building2, Mail } from 'lucide-react';
 import logo from '../assets/logo.png';
@@ -170,6 +171,17 @@ export default function StudentDashboard() {
     };
 
     fetchData();
+
+    // Setup socket to listen for new newsletters
+    const socket = io('http://localhost:5000');
+    socket.on('connect', () => console.log('Student socket connected', socket.id));
+    socket.on('newNewsletter', (newsletter) => {
+      setNewsletters(prev => [newsletter, ...prev]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const lowercaseSearch = search.toLowerCase();
