@@ -51,15 +51,102 @@ const userSchema = new mongoose.Schema({
             default: ''
         },
         
-        // Student-specific fields
-        education: [{
-            institution: String,
-            degree: String,
-            fieldOfStudy: String,
-            startDate: Date,
-            endDate: Date,
-            current: Boolean
+        // Student-specific fields (form-backed)
+
+        // Role & Goal
+        currentStatus: {
+            type: String,
+            enum: ['Student', 'Graduate', 'Career Switcher']
+        },
+        targetRole: {
+            type: String
+        },
+        primaryGoal: {
+            type: String
+        },
+
+        // Availability
+        availableStartDate: Date,
+        weeklyAvailabilityHours: Number,
+        commitmentDurationWeeks: Number,
+        canWorkDuringExams: {
+            type: Boolean,
+            default: false
+        },
+
+        // Timezone and verification flags
+        timezone: String,
+        emailVerified: {
+            type: Boolean,
+            default: false
+        },
+        phoneVerified: {
+            type: Boolean,
+            default: false
+        },
+
+        // Education (simplified form fields)
+        highestEducationLevel: String,
+        degreeProgram: String,
+        institutionName: String,
+        educationStartYear: Number,
+        educationEndYear: Number,
+        educationCGPA: String,
+
+        // Skills (limited top 5)
+        topSkills: [{
+            skillName: String,
+            selfRatedLevel: {
+                type: String,
+                enum: ['Beginner', 'Intermediate', 'Advanced']
+            },
+            howLearned: String
         }],
+
+        // Experience (optional)
+        priorInternship: {
+            hasInternship: { type: Boolean, default: false },
+            company: String,
+            role: String,
+            durationWeeks: Number
+        },
+        priorWorkExperience: {
+            hasWorkExperience: { type: Boolean, default: false },
+            title: String,
+            durationWeeks: Number
+        },
+
+        // Links
+        links: {
+            github: String,
+            portfolio: String,
+            linkedIn: String
+        },
+
+        // Resume metadata
+        resumePath: String,
+        resumeLastUpdated: Date,
+
+        // Preferences
+        internshipTypePreference: {
+            type: String,
+            enum: ['Paid', 'Unpaid', 'Either']
+        },
+        workModePreference: {
+            type: String,
+            enum: ['Remote', 'Hybrid', 'Onsite', 'Either']
+        },
+        preferredDomains: [String],
+        preferredCompanySize: String,
+
+        // Declarations / consent
+        declarations: {
+            informationAccuracy: { type: Boolean, default: false },
+            consentToSkillAssessment: { type: Boolean, default: false },
+            consentToFeedbackScoring: { type: Boolean, default: false }
+        },
+
+        // Keep some advanced fields for compatibility (do not remove)
         skills: [{
             type: String
         }],
