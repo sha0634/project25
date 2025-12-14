@@ -1,5 +1,75 @@
 const Newsletter = require('../models/Newsletter');
 
+// AI-based newsletter generation from a prompt
+exports.generateNewsletterFromPrompt = async (req, res) => {
+    try {
+        const { prompt, apiKey } = req.body;
+
+        if (!prompt || prompt.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Prompt is required' });
+        }
+
+        const effectiveKey = apiKey || process.env.GEMINI_API_KEY;
+        let text = '';
+
+        const systemPrompt = `You are an assistant that creates concise, student-facing newsletters for a company. Given a user's prompt, return a JSON object with keys: title (short, <= 100 chars), summary (short <= 200 chars), content (HTML string with paragraphs and simple markup). Respond ONLY with valid JSON.`;
+
+        if (effectiveKey) {
+            try {
+                let GoogleGenAI;
+                try { GoogleGenAI = require('@google/genai').GoogleGenAI; } catch (e) { GoogleGenAI = null; }
+
+                const requestPrompt = `${systemPrompt}\n\nUser prompt: ${prompt}`;
+
+                if (GoogleGenAI) {
+                    const ai = new GoogleGenAI({ apiKey: effectiveKey });
+                    const response = await ai.models.generateContent({
+                        model: 'gemini-2.5-flash',
+                        contents: requestPrompt,
+                        config: { temperature: 0.3 }
+                    });
+                    text = response?.text || '';
+                } else {
+                    const url = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=${effectiveKey}`;
+                    const fetchBody = { prompt: { text: requestPrompt }, temperature: 0.3, maxOutputTokens: 1024 };
+                    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fetchBody) });
+                    const json = await resp.json();
+                    if (json.candidates && json.candidates[0] && json.candidates[0].content) text = json.candidates[0].content;
+                    else if (json.output && json.output[0] && json.output[0].content) text = json.output[0].content;
+                    else if (typeof json.result === 'string') text = json.result;
+                }
+            } catch (aiErr) {
+                console.error('AI generation error:', aiErr);
+            }
+        }
+
+        // Try to parse JSON from text
+        let parsed = null;
+        try { parsed = JSON.parse(text); } catch (e) {
+            const start = text.indexOf('{');
+            const end = text.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+                const sub = text.substring(start, end + 1);
+                try { parsed = JSON.parse(sub); } catch (e2) { parsed = null; }
+            }
+        }
+
+        // If parsing failed, create a minimal fallback using the prompt
+        if (!parsed) {
+            parsed = {
+                title: (prompt.length > 60 ? prompt.slice(0, 57) + '...' : `Newsletter: ${prompt.slice(0, 60)}`),
+                summary: prompt.slice(0, 180),
+                content: `<p>${prompt.replace(/\n/g, '<br/>')}</p>`
+            };
+        }
+
+        res.status(200).json({ success: true, newsletter: parsed });
+    } catch (error) {
+        console.error('Generate newsletter error:', error);
+        res.status(500).json({ success: false, message: 'Error generating newsletter', error: error.message });
+    }
+};
+
 // @desc    Get all published newsletters
 // @route   GET /api/newsletters
 // @access  Public
@@ -76,6 +146,16 @@ exports.createNewsletter = async (req, res) => {
             content,
             status: status || 'Published'
         });
+
+        // Emit real-time event to connected clients (students) so they can see new newsletter immediately
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.emit('newNewsletter', newsletter);
+            }
+        } catch (emitErr) {
+            console.error('Error emitting newNewsletter:', emitErr);
+        }
 
         res.status(201).json({
             success: true,

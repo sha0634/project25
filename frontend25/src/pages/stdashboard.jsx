@@ -1,7 +1,10 @@
 // src/StudentDashboard.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
+import io from 'socket.io-client';
 import { Link } from "react-router-dom";
+
 import { Moon, Sun, DollarSign, Target, Rocket, MapPin, Building2, Mail, Users, Clock } from 'lucide-react'; // Added Users and Clock icons
+import logo from '../assets/logo.png';
 
 const NEWSLETTERS = [
   {
