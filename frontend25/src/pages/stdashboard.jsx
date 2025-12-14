@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
 import { Moon, Sun, DollarSign, Target, Rocket, MapPin, Building2, Mail, Users, Clock } from 'lucide-react'; // Added Users and Clock icons
+import io from 'socket.io-client';
 import logo from '../assets/logo.png';
 
 // Newsletters will be fetched from the backend; start with empty list
@@ -25,8 +26,12 @@ export default function StudentDashboard() {
     const [applying, setApplying] = useState(false);
     const [selectedNewsletter, setSelectedNewsletter] = useState(null);
     const [showNewsletterModal, setShowNewsletterModal] = useState(false);
-    const dropdownRef = useRef(null);
-    
+
+	const dropdownRef = useRef(null);
+	const socketRef = useRef(null);
+	const [notifications, setNotifications] = useState([]);
+	const [unreadCount, setUnreadCount] = useState(0);
+    
 		// Courses will be fetched from backend
 		const [courses, setCourses] = useState([]);
 		const [enrolledCourseIds, setEnrolledCourseIds] = useState(() => {
@@ -101,6 +106,64 @@ export default function StudentDashboard() {
 
     fetchData();
   }, []);
+
+	// Fetch notifications for student
+	const fetchNotifications = async () => {
+		try {
+			const token = localStorage.getItem('token');
+			const response = await fetch('http://localhost:5000/api/notifications', {
+				headers: { Authorization: `Bearer ${token}` }
+			});
+			if (response.ok) {
+				const data = await response.json();
+				setNotifications(data.notifications || []);
+				setUnreadCount(data.unreadCount || 0);
+			}
+		} catch (err) {
+			console.error('Error fetching notifications:', err);
+		}
+	};
+
+	const markAsRead = async (notificationId) => {
+		try {
+			const token = localStorage.getItem('token');
+			await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+				method: 'PUT',
+				headers: { Authorization: `Bearer ${token}` }
+			});
+			setNotifications(prev => prev.map(n => n._id === notificationId ? { ...n, read: true } : n));
+			setUnreadCount(prev => Math.max(0, prev - 1));
+		} catch (err) {
+			console.error('Error marking notification read:', err);
+		}
+	};
+
+	// Socket setup for real-time notifications
+	useEffect(() => {
+		const userId = localStorage.getItem('userId');
+		const token = localStorage.getItem('token');
+		if (!userId || !token) return;
+
+		socketRef.current = io('http://localhost:5000');
+		socketRef.current.on('connect', () => {
+			socketRef.current.emit('register', userId);
+		});
+
+		socketRef.current.on('newNotification', (notification) => {
+			setNotifications(prev => [notification, ...prev]);
+			setUnreadCount(prev => prev + 1);
+			if (Notification.permission === 'granted') {
+				new Notification(notification.title, { body: notification.message });
+			}
+		});
+
+		// load initial notifications
+		fetchNotifications();
+
+		return () => {
+			try { socketRef.current.disconnect(); } catch (e) {}
+		};
+	}, []);
 
   const lowercaseSearch = search.toLowerCase();
 
@@ -577,13 +640,44 @@ export default function StudentDashboard() {
                   )}
                 </div>
               </div>
-            )}
-          </section>
-        )}
+				)}
+					</section>
+				)}
 
+				{/* NOTIFICATIONS TAB */}
+				{activeTab === "notifications" && (
+					<section>
+						<div className="mb-4 flex items-center justify-between">
+							<h1 className="text-xl font-semibold">Notifications</h1>
+							<p className="text-sm text-slate-500">You have {unreadCount} unread</p>
+						</div>
+						{notifications.length === 0 ? (
+							<p className="text-sm text-slate-600">No notifications yet.</p>
+						) : (
+							<div className="space-y-3">
+								{notifications.map((n) => (
+									<div key={n._id} className={`p-3 rounded-lg border ${n.read ? 'bg-white border-slate-200' : 'bg-yellow-50 border-yellow-200'}`}>
+										<div className="flex items-start justify-between">
+											<div>
+												<div className="font-semibold">{n.title}</div>
+												<div className="text-sm text-slate-600">{n.message}</div>
+												<div className="text-xs text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+											</div>
+											<div className="flex flex-col gap-2 ml-4">
+												{!n.read && (
+													<button onClick={() => markAsRead(n._id)} className="px-3 py-1 text-xs rounded bg-[#443097] text-white">Mark read</button>
+												)}
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</section>
+				)}
 
-        {/* COURSES TAB - MODIFIED */}
-        {activeTab === "courses" && (
+				{/* COURSES TAB - MODIFIED */}
+				{activeTab === "courses" && (
   <section>
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-xl font-semibold md:text-2xl">
