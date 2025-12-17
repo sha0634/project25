@@ -86,6 +86,10 @@ export default function CompanyDashboard() {
   const [questionCount, setQuestionCount] = useState(4);
   const [microtaskMode, setMicrotaskMode] = useState('ai'); // 'ai' or 'manual'
   const [microtaskAssigning, setMicrotaskAssigning] = useState({ internshipId: null, studentId: null });
+  // Student submission UI state
+  const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const [currentMicrotask, setCurrentMicrotask] = useState(null);
+  const [submissionData, setSubmissionData] = useState({ text: '', githubLink: '', files: [], answers: [] });
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -604,6 +608,18 @@ export default function CompanyDashboard() {
   const handleViewProfile = (applicant) => {
     setSelectedApplicant(applicant);
     setShowProfileModal(true);
+  };
+
+  // Open student submission modal (student-side will call this with the microtask object)
+  const openSubmissionModal = (microtask) => {
+    setCurrentMicrotask(microtask || null);
+    // initialize answers if it's a quiz
+    if (microtask?.type === 'quiz' && microtask.quizQuestions) {
+      setSubmissionData({ text: '', githubLink: '', files: [], answers: microtask.quizQuestions.map(() => '') });
+    } else {
+      setSubmissionData({ text: '', githubLink: '', files: [], answers: [] });
+    }
+    setShowSubmissionModal(true);
   };
 
   // Debug helper removed: no console exposure in production
@@ -1256,127 +1272,7 @@ export default function CompanyDashboard() {
           </section>
         )}
 
-        {/* Microtask Modal */}
-        {showMicrotaskModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowMicrotaskModal(false)}>
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-full max-w-lg p-6" onClick={(e)=>e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-3">Assign Microtask</h3>
-              <div className="grid gap-3">
-                <input className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Title" value={microtaskForm.title} onChange={(e)=>setMicrotaskForm(prev=>({...prev,title:e.target.value}))} />
-                <select className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.type} onChange={(e)=>setMicrotaskForm(prev=>({...prev,type:e.target.value}))}>
-                  <option value="task">Task</option>
-                  <option value="quiz">Quiz</option>
-                  <option value="github">GitHub</option>
-                </select>
-                <textarea className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Instructions" value={microtaskForm.instructions} onChange={(e)=>setMicrotaskForm(prev=>({...prev,instructions:e.target.value}))} />
-                <input type="date" className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.dueDate} onChange={(e)=>setMicrotaskForm(prev=>({...prev,dueDate:e.target.value}))} />
-                {microtaskForm.type === 'quiz' && (
-                  <>
-                    <div className="flex gap-4 items-center">
-                      <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='ai'} onChange={()=>setMicrotaskMode('ai')} /> Use AI</label>
-                      <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='manual'} onChange={()=>setMicrotaskMode('manual')} /> Create Manually</label>
-                    </div>
-
-                    {microtaskMode === 'ai' && (
-                      <>
-                        <div className="flex gap-2 items-center mt-2">
-                          <label className="text-sm">Questions:</label>
-                          <input type="number" min={1} max={10} value={questionCount} onChange={(e)=>setQuestionCount(Number(e.target.value))} className={`border rounded-lg p-2 w-20 ${cardTheme}`} />
-                          <button onClick={async ()=>{
-                            try {
-                              const token = localStorage.getItem('token');
-                              const { internshipId } = microtaskAssigning;
-                              const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
-                                method: 'POST',
-                                headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-                                body: JSON.stringify({ questionCount })
-                              });
-                              const data = await resp.json();
-                              if (!resp.ok) { alert(data.message || 'Failed to generate'); return; }
-                              setMicrotaskQuestions(data.questions || []);
-                              alert('Generated quiz preview ready');
-                            } catch (err) { console.error('Generate quiz error', err); alert('Error generating quiz'); }
-                          }} className="px-3 py-1 bg-[#443097] text-white rounded">Use AI</button>
-                          <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
-                        </div>
-                        {microtaskQuestions.length > 0 && (
-                          <div className="mt-2 p-2 border rounded">
-                            <p className="text-sm font-medium">Preview Questions:</p>
-                            <ol className="list-decimal ml-5 text-sm">
-                              {microtaskQuestions.map((q, i)=> (
-                                <li key={i} className="mt-1">{q.question} <span className="text-xs text-slate-500">(Options: {q.options?.join(' / ')})</span></li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {microtaskMode === 'manual' && (
-                      <div className="mt-3">
-                        <p className="text-sm font-medium mb-2">Create quiz questions (up to 10)</p>
-                        {(microtaskQuestions || []).map((q, qi) => (
-                          <div key={qi} className="p-2 border rounded mb-2">
-                            <input className={`w-full border p-2 rounded ${cardTheme}`} placeholder={`Question ${qi+1}`} value={q.question} onChange={(e)=>{
-                              const copy = [...microtaskQuestions]; copy[qi].question = e.target.value; setMicrotaskQuestions(copy);
-                            }} />
-                            <div className="grid grid-cols-2 gap-2 mt-2">
-                              { (q.options||[]).map((opt, oi) => (
-                                <div key={oi} className="flex items-center gap-2">
-                                  <input className="w-full border p-2 rounded" value={opt} onChange={(e)=>{ const copy=[...microtaskQuestions]; copy[qi].options[oi]=e.target.value; setMicrotaskQuestions(copy); }} />
-                                  <label className="text-sm"> <input type="radio" name={`correct_${qi}`} checked={q.correctIndex===oi} onChange={()=>{ const copy=[...microtaskQuestions]; copy[qi].correctIndex=oi; setMicrotaskQuestions(copy); }} /> </label>
-                                </div>
-                              )) }
-                            </div>
-                            <div className="flex gap-2 mt-2">
-                              <button onClick={()=>{
-                                const copy = [...microtaskQuestions]; copy.splice(qi,1); setMicrotaskQuestions(copy);
-                              }} className="px-2 py-1 border rounded">Remove</button>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="flex gap-2">
-                          <button onClick={()=>{
-                            if ((microtaskQuestions||[]).length >= 10) return alert('Max 10 questions');
-                            setMicrotaskQuestions(prev => [...(prev||[]), { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
-                          }} className="px-3 py-1 bg-[#443097] text-white rounded">Add Question</button>
-                          <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="flex items-center justify-end gap-2 mt-2">
-                  <button onClick={()=>setShowMicrotaskModal(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
-                  <button onClick={async ()=>{
-                    try{
-                      const token = localStorage.getItem('token');
-                      const { internshipId, studentId } = microtaskAssigning;
-                      const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
-                      if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
-                      const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
-                        method: 'POST',
-                        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify(body)
-                      });
-                      if (!resp.ok) {
-                        const err = await resp.json();
-                        alert(err.message || 'Failed to assign microtask');
-                        return;
-                      }
-                      alert('Microtask assigned');
-                      setShowMicrotaskModal(false);
-                      setMicrotaskQuestions([]);
-                    } catch(err) {
-                      console.error('Assign microtask error:', err);
-                      alert('Error assigning microtask');
-                    }
-                  }} className="px-4 py-2 rounded-lg bg-[#443097] text-white">Assign</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        
 
       {/* Create Newsletter Modal */}
       {showCreateNewsletter && (
@@ -2009,36 +1905,70 @@ export default function CompanyDashboard() {
       {/* Microtask Modal */}
       {showMicrotaskModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowMicrotaskModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-full max-w-lg p-6" onClick={(e)=>e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-3">Assign Microtask</h3>
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl ${cardTheme} p-6`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <h3 className={`text-lg font-semibold ${theme === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>Assign Microtask</h3>
+              <button onClick={() => setShowMicrotaskModal(false)} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><X /></button>
+            </div>
+
             <div className="grid gap-3">
-              <input className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Title" value={microtaskForm.title} onChange={(e)=>setMicrotaskForm(prev=>({...prev,title:e.target.value}))} />
-              <select className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.type} onChange={(e)=>setMicrotaskForm(prev=>({...prev,type:e.target.value}))}>
+              <input
+                className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                placeholder="Title"
+                value={microtaskForm.title}
+                onChange={(e) => setMicrotaskForm((prev) => ({ ...prev, title: e.target.value }))}
+              />
+
+              <select
+                className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                value={microtaskForm.type}
+                onChange={(e) => setMicrotaskForm((prev) => ({ ...prev, type: e.target.value }))}
+              >
                 <option value="task">Task</option>
                 <option value="quiz">Quiz</option>
                 <option value="github">GitHub</option>
               </select>
-              <textarea className={`border rounded-lg p-2 ${cardTheme}`} placeholder="Instructions" value={microtaskForm.instructions} onChange={(e)=>setMicrotaskForm(prev=>({...prev,instructions:e.target.value}))} />
-              <input type="date" className={`border rounded-lg p-2 ${cardTheme}`} value={microtaskForm.dueDate} onChange={(e)=>setMicrotaskForm(prev=>({...prev,dueDate:e.target.value}))} />
+
+              <textarea
+                className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                placeholder="Instructions"
+                value={microtaskForm.instructions}
+                onChange={(e) => setMicrotaskForm((prev) => ({ ...prev, instructions: e.target.value }))}
+              />
+
+              <input
+                type="date"
+                className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                value={microtaskForm.dueDate}
+                onChange={(e) => setMicrotaskForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+              />
+
               {microtaskForm.type === 'quiz' && (
                 <>
                   <div className="flex gap-4 items-center">
-                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='ai'} onChange={()=>setMicrotaskMode('ai')} /> Use AI</label>
-                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode==='manual'} onChange={()=>setMicrotaskMode('manual')} /> Create Manually</label>
+                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode === 'ai'} onChange={() => setMicrotaskMode('ai')} /> Use AI</label>
+                    <label className="flex items-center gap-2"><input type="radio" name="quizMode" checked={microtaskMode === 'manual'} onChange={() => setMicrotaskMode('manual')} /> Create Manually</label>
                   </div>
 
                   {microtaskMode === 'ai' && (
                     <>
                       <div className="flex gap-2 items-center mt-2">
                         <label className="text-sm">Questions:</label>
-                        <input type="number" min={1} max={10} value={questionCount} onChange={(e)=>setQuestionCount(Number(e.target.value))} className={`border rounded-lg p-2 w-20 ${cardTheme}`} />
-                        <button onClick={async ()=>{
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={questionCount}
+                          onChange={(e) => setQuestionCount(Number(e.target.value))}
+                          className={`rounded-lg border px-3 py-2 w-24 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                        />
+                        <button onClick={async () => {
                           try {
                             const token = localStorage.getItem('token');
                             const { internshipId } = microtaskAssigning;
                             const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
                               method: 'POST',
-                              headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                               body: JSON.stringify({ questionCount })
                             });
                             const data = await resp.json();
@@ -2047,13 +1977,14 @@ export default function CompanyDashboard() {
                             alert('Generated quiz preview ready');
                           } catch (err) { console.error('Generate quiz error', err); alert('Error generating quiz'); }
                         }} className="px-3 py-1 bg-[#443097] text-white rounded">Use AI</button>
-                        <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
+                        <button onClick={() => { setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
                       </div>
+
                       {microtaskQuestions.length > 0 && (
-                        <div className="mt-2 p-2 border rounded">
+                        <div className={`mt-2 p-2 rounded border ${theme === 'light' ? 'border-slate-200' : 'border-slate-700'}`}>
                           <p className="text-sm font-medium">Preview Questions:</p>
                           <ol className="list-decimal ml-5 text-sm">
-                            {microtaskQuestions.map((q, i)=> (
+                            {microtaskQuestions.map((q, i) => (
                               <li key={i} className="mt-1">{q.question} <span className="text-xs text-slate-500">(Options: {q.options?.join(' / ')})</span></li>
                             ))}
                           </ol>
@@ -2066,47 +1997,50 @@ export default function CompanyDashboard() {
                     <div className="mt-3">
                       <p className="text-sm font-medium mb-2">Create quiz questions (up to 10)</p>
                       {(microtaskQuestions || []).map((q, qi) => (
-                        <div key={qi} className="p-2 border rounded mb-2">
-                          <input className={`w-full border p-2 rounded ${cardTheme}`} placeholder={`Question ${qi+1}`} value={q.question} onChange={(e)=>{
-                            const copy = [...microtaskQuestions]; copy[qi].question = e.target.value; setMicrotaskQuestions(copy);
-                          }} />
+                        <div key={qi} className={`p-2 rounded mb-2 border ${theme === 'light' ? 'border-slate-200' : 'border-slate-700'}`}>
+                          <input
+                            className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                            placeholder={`Question ${qi + 1}`}
+                            value={q.question}
+                            onChange={(e) => { const copy = [...microtaskQuestions]; copy[qi].question = e.target.value; setMicrotaskQuestions(copy); }}
+                          />
                           <div className="grid grid-cols-2 gap-2 mt-2">
-                            { (q.options||[]).map((opt, oi) => (
+                            {(q.options || []).map((opt, oi) => (
                               <div key={oi} className="flex items-center gap-2">
-                                <input className="w-full border p-2 rounded" value={opt} onChange={(e)=>{ const copy=[...microtaskQuestions]; copy[qi].options[oi]=e.target.value; setMicrotaskQuestions(copy); }} />
-                                <label className="text-sm"> <input type="radio" name={`correct_${qi}`} checked={q.correctIndex===oi} onChange={()=>{ const copy=[...microtaskQuestions]; copy[qi].correctIndex=oi; setMicrotaskQuestions(copy); }} /> </label>
+                                <input className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`} value={opt} onChange={(e) => { const copy = [...microtaskQuestions]; copy[qi].options[oi] = e.target.value; setMicrotaskQuestions(copy); }} />
+                                <label className="text-sm"> <input type="radio" name={`correct_${qi}`} checked={q.correctIndex === oi} onChange={() => { const copy = [...microtaskQuestions]; copy[qi].correctIndex = oi; setMicrotaskQuestions(copy); }} /> </label>
                               </div>
-                            )) }
+                            ))}
                           </div>
                           <div className="flex gap-2 mt-2">
-                            <button onClick={()=>{
-                              const copy = [...microtaskQuestions]; copy.splice(qi,1); setMicrotaskQuestions(copy);
-                            }} className="px-2 py-1 border rounded">Remove</button>
+                            <button onClick={() => { const copy = [...microtaskQuestions]; copy.splice(qi, 1); setMicrotaskQuestions(copy); }} className="px-2 py-1 border rounded">Remove</button>
                           </div>
                         </div>
                       ))}
+
                       <div className="flex gap-2">
-                        <button onClick={()=>{
-                          if ((microtaskQuestions||[]).length >= 10) return alert('Max 10 questions');
-                          setMicrotaskQuestions(prev => [...(prev||[]), { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
+                        <button onClick={() => {
+                          if ((microtaskQuestions || []).length >= 10) return alert('Max 10 questions');
+                          setMicrotaskQuestions(prev => [...(prev || []), { question: '', options: ['', '', '', ''], correctIndex: 0 }]);
                         }} className="px-3 py-1 bg-[#443097] text-white rounded">Add Question</button>
-                        <button onClick={()=>{ setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
+                        <button onClick={() => { setMicrotaskQuestions([]); }} className="px-3 py-1 border rounded">Clear</button>
                       </div>
                     </div>
                   )}
                 </>
               )}
+
               <div className="flex items-center justify-end gap-2 mt-2">
-                <button onClick={()=>setShowMicrotaskModal(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
-                <button onClick={async ()=>{
-                  try{
+                <button onClick={() => setShowMicrotaskModal(false)} className={`px-4 py-2 rounded-lg border ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-700'}`}>Cancel</button>
+                <button onClick={async () => {
+                  try {
                     const token = localStorage.getItem('token');
                     const { internshipId, studentId } = microtaskAssigning;
                     const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
                     if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
                     const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
                       method: 'POST',
-                      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                       body: JSON.stringify(body)
                     });
                     if (!resp.ok) {
@@ -2117,7 +2051,7 @@ export default function CompanyDashboard() {
                     alert('Microtask assigned');
                     setShowMicrotaskModal(false);
                     setMicrotaskQuestions([]);
-                  } catch(err) {
+                  } catch (err) {
                     console.error('Assign microtask error:', err);
                     alert('Error assigning microtask');
                   }
@@ -2126,7 +2060,117 @@ export default function CompanyDashboard() {
             </div>
           </div>
         </div>
-        )}
+      )}
+
+      {/* Student Submission Modal (used by student-facing views) */}
+      {showSubmissionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowSubmissionModal(false)}>
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl ${cardTheme} p-6`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <h3 className={`text-lg font-semibold ${theme === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>{currentMicrotask?.title || 'Submit Task'}</h3>
+              <button onClick={() => setShowSubmissionModal(false)} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><X /></button>
+            </div>
+
+            <div className="space-y-3">
+              <p className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>{currentMicrotask?.instructions || 'Provide your submission below.'}</p>
+
+              {currentMicrotask?.type !== 'quiz' && (
+                <>
+                  <label className="block text-sm font-medium">Answer / Notes</label>
+                  <textarea
+                    rows={4}
+                    value={submissionData.text}
+                    onChange={(e) => setSubmissionData(prev => ({ ...prev, text: e.target.value }))}
+                    className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                  />
+
+                  <label className="block text-sm font-medium">GitHub Repo / Link (optional)</label>
+                  <input
+                    value={submissionData.githubLink}
+                    onChange={(e) => setSubmissionData(prev => ({ ...prev, githubLink: e.target.value }))}
+                    className={`w-full rounded-lg border px-3 py-2 ${theme === 'light' ? 'border-slate-300 bg-white text-black' : 'border-slate-600 bg-slate-700 text-white'}`}
+                    placeholder="https://github.com/your/repo"
+                  />
+
+                  <label className="block text-sm font-medium">Attach files (optional)</label>
+                  <label htmlFor="submission-files" className={`w-full flex items-center justify-between cursor-pointer rounded-lg border px-3 py-2 text-sm ${theme === 'light' ? 'border-slate-300 bg-white hover:bg-slate-50' : 'border-slate-600 bg-slate-700 hover:bg-slate-600'}`}>
+                    <span className="truncate pr-4">{submissionData.files.length > 0 ? `${submissionData.files.length} file(s) selected` : 'Choose files...'}</span>
+                    <span className="text-xs bg-[#443097] text-white px-3 py-1 rounded-md">Browse</span>
+                  </label>
+                  <input id="submission-files" type="file" multiple className="hidden" accept="*/*" onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setSubmissionData(prev => ({ ...prev, files: [...prev.files, ...files] }));
+                    e.target.value = null;
+                  }} />
+
+                  {submissionData.files.length > 0 && (
+                    <div className="mt-2 space-y-1 text-sm">
+                      {submissionData.files.map((f, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2">
+                          <div className="truncate">{f.name}</div>
+                          <button type="button" onClick={() => setSubmissionData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="text-xs text-red-600">Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {currentMicrotask?.type === 'quiz' && currentMicrotask.quizQuestions && (
+                <div>
+                  <p className="text-sm font-medium mb-2">Quiz</p>
+                  <ol className="list-decimal ml-5 text-sm space-y-3">
+                    {currentMicrotask.quizQuestions.map((q, i) => (
+                      <li key={i} className="space-y-2">
+                        <div className="font-medium">{q.question}</div>
+                        <div className="grid grid-cols-1 gap-2">
+                          {(q.options || []).map((opt, oi) => (
+                            <label key={oi} className="flex items-center gap-2">
+                              <input type="radio" name={`answer_${i}`} checked={submissionData.answers[i] === String(oi)} onChange={() => setSubmissionData(prev => {
+                                const answers = [...(prev.answers || [])]; answers[i] = String(oi); return { ...prev, answers };
+                              })} />
+                              <span>{opt}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 mt-3">
+                <button onClick={() => setShowSubmissionModal(false)} className={`px-4 py-2 rounded-lg border ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-700'}`}>Cancel</button>
+                <button onClick={async () => {
+                  try {
+                    if (!currentMicrotask) return alert('No task selected');
+                    const token = localStorage.getItem('token');
+                    const fd = new FormData();
+                    fd.append('text', submissionData.text || '');
+                    fd.append('githubLink', submissionData.githubLink || '');
+                    if (submissionData.answers && submissionData.answers.length > 0) fd.append('answers', JSON.stringify(submissionData.answers));
+                    submissionData.files.forEach((f) => fd.append('files', f));
+
+                    const resp = await fetch(`http://localhost:5000/api/microtasks/${currentMicrotask._id}/submissions`, {
+                      method: 'POST',
+                      headers: { Authorization: token ? `Bearer ${token}` : undefined },
+                      body: fd
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (!resp.ok) { alert(data.message || 'Failed to submit'); return; }
+                    alert('Submission successful');
+                    setShowSubmissionModal(false);
+                    setSubmissionData({ text: '', githubLink: '', files: [], answers: [] });
+                  } catch (err) {
+                    console.error('Submission error', err);
+                    alert('Error submitting task');
+                  }
+                }} className="px-4 py-2 rounded-lg bg-[#443097] text-white">Submit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* COURSE CREATION MODAL - MODIFIED FOR VIDEO UPLOAD */}
       {showCourseForm && (
