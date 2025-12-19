@@ -8,6 +8,7 @@ const {
     getCompanyProfile,
     updateCompanyProfile,
     uploadResume,
+    compareJDWithResume,
     uploadProfilePicture,
     deleteResume
 } = require('../controllers/profileController');
@@ -104,6 +105,8 @@ router.post('/student/upload-resume', protect, (req, res, next) => {
         next();
     });
 }, uploadResume);
+// AI comparison: compare job description with student's uploaded resume text
+router.post('/student/compare-jd', protect, compareJDWithResume);
 router.delete('/student/delete-resume', protect, deleteResume);
 
 // Company profile routes
