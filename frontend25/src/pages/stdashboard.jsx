@@ -24,6 +24,8 @@ export default function StudentDashboard() {
     const [selectedInternship, setSelectedInternship] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [applying, setApplying] = useState(false);
+	const [jdAnalysis, setJdAnalysis] = useState('');
+	const [analyzingJD, setAnalyzingJD] = useState(false);
     const [selectedNewsletter, setSelectedNewsletter] = useState(null);
     const [showNewsletterModal, setShowNewsletterModal] = useState(false);
 
@@ -244,6 +246,37 @@ export default function StudentDashboard() {
       setApplying(false);
     }
   };
+
+	const handleAnalyzeInternship = async () => {
+		if (!selectedInternship) return;
+		setAnalyzingJD(true);
+		setJdAnalysis('');
+		try {
+			const jdText = `${selectedInternship.description || ''}\n\nResponsibilities:\n${selectedInternship.responsibilities || selectedInternship.requirements || ''}`;
+			const token = localStorage.getItem('token');
+			const res = await fetch('http://localhost:5000/api/profile/student/compare-jd', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
+				body: JSON.stringify({ jdText })
+			});
+
+			const data = await res.json();
+			if (res.ok && data.success) {
+				setJdAnalysis(data.analysis);
+			} else {
+				console.error('AI analyze error', data);
+				alert(data.message || 'Failed to analyze job description');
+			}
+		} catch (err) {
+			console.error('Error calling AI analyze:', err);
+			alert('Failed to analyze job description. See console for details.');
+		} finally {
+			setAnalyzingJD(false);
+		}
+	};
 
   const rootTheme =
     theme === "dark"
@@ -1020,6 +1053,22 @@ export default function StudentDashboard() {
 							<p className={`text-sm leading-relaxed ${theme === "light" ? "text-slate-700" : "text-slate-300"}`}>
 								{selectedInternship.description || selectedInternship.summary || 'No description provided.'}
 							</p>
+
+							{/* AI Analysis for JD vs Resume */}
+							<div className="mt-4">
+								<button onClick={handleAnalyzeInternship} disabled={analyzingJD} className="px-3 py-2 bg-[#443097] text-white rounded-lg text-sm hover:bg-[#36217c] mr-3">
+									{analyzingJD ? 'Analyzing...' : 'Analyze fit with your resume'}
+								</button>
+								<button onClick={() => { setJdAnalysis(''); }} className="px-3 py-2 border rounded-lg text-sm">Clear</button>
+								{jdAnalysis && (
+									<div className={`mt-3 p-3 rounded-lg border ${cardTheme} whitespace-pre-wrap`}>
+										<h4 className="font-semibold mb-2">AI Analysis</h4>
+										<div className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>
+											{jdAnalysis}
+										</div>
+									</div>
+								)}
+							</div>
 						</div>
 
 						<div className="mb-4">

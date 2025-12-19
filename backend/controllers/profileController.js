@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const PDFDocument = require('pdfkit');
 const { parseCV } = require('../utils/cvParser');
+const fetch = global.fetch || require('node-fetch');
 
 // @desc    Upload resume
 // @route   POST /api/profile/student/upload-resume
@@ -641,5 +642,168 @@ exports.updateCompanyProfile = async (req, res) => {
             message: 'Error updating profile',
             error: error.message
         });
+    }
+};
+
+// @desc    Compare job description with student's resume using Gemini AI
+// @route   POST /api/profile/student/compare-jd
+// @access  Private
+exports.compareJDWithResume = async (req, res) => {
+    try {
+        const { jdText } = req.body;
+
+        if (!jdText || typeof jdText !== 'string' || jdText.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Job description text (jdText) is required in request body' });
+        }
+
+        const user = await User.findById(req.user.id).select('profile');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const resumeText = user.profile && user.profile.resumeText ? user.profile.resumeText : '';
+        if (!resumeText) {
+            return res.status(400).json({ success: false, message: 'No parsed resume text available for this user. Please upload a PDF resume first.' });
+        }
+
+        const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+        if (!geminiKey) {
+            return res.status(500).json({ success: false, message: 'Gemini API key not configured on server (set GEMINI_API_KEY)' });
+        }
+
+        const model = process.env.GEMINI_MODEL || 'text-bison-001';
+        const prompt = `You are an expert career coach. Compare the candidate's resume against the job description and produce:
+1) A concise comparison paragraph (2-4 sentences) summarizing fit.
+2) Two short lists prefixed with headings "What's good:" and "What to improve:" with 3-6 brief bullet points each.
+
+Resume:\n${resumeText}\n\nJob Description:\n${jdText}\n\nRespond in plain text.`;
+
+        // Try multiple strategies for calling a text-generation model:
+        // 1) Use @google/genai client if available
+        // 2) Try REST v1beta2 :generate (new endpoint)
+        // 3) Try REST v1beta2 :generateText (older compatibility endpoint used in newsletter)
+        // 4) Fallback to OpenAI ChatCompletion if OPENAI_API_KEY present
+
+        let resultText = '';
+
+        // Helper to parse JSON response shapes
+        const parseGenResponse = (json) => {
+            if (!json) return '';
+            if (json.candidates && Array.isArray(json.candidates) && json.candidates[0]) {
+                // some responses put text in candidates[0].content
+                const cand = json.candidates[0];
+                if (typeof cand === 'string') return cand;
+                if (cand.content) return cand.content;
+                if (cand.text) return cand.text;
+            }
+            if (json.output && Array.isArray(json.output) && json.output.length > 0) {
+                try {
+                    return json.output.map(o => (o.content || []).map(c => c.text || c).join('\n')).join('\n');
+                } catch (e) { /* ignore */ }
+            }
+            if (typeof json.result === 'string') return json.result;
+            if (typeof json.text === 'string') return json.text;
+            return '';
+        };
+
+        // 1) try @google/genai client (same as newsletter controller)
+        try {
+            let GoogleGenAI;
+            try { GoogleGenAI = require('@google/genai').GoogleGenAI; } catch (e) { GoogleGenAI = null; }
+
+            const requestPrompt = `${prompt}`;
+
+            if (GoogleGenAI) {
+                const ai = new GoogleGenAI({ apiKey: geminiKey });
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: requestPrompt,
+                    config: { temperature: 0.2 }
+                });
+                resultText = response?.text || '';
+            }
+        } catch (e) {
+            console.warn('genai client check failed', e && e.message ? e.message : e);
+        }
+
+        // 2) Try modern REST generate endpoint
+        if (!resultText) {
+            try {
+                const urlBase = `https://generativelanguage.googleapis.com/v1beta2/models/${model}:generate`;
+                let url = urlBase;
+                const headers = { 'Content-Type': 'application/json' };
+                if (typeof geminiKey === 'string' && geminiKey.startsWith('ya29.')) {
+                    headers['Authorization'] = `Bearer ${geminiKey}`;
+                } else {
+                    const sep = urlBase.includes('?') ? '&' : '?';
+                    url = `${urlBase}${sep}key=${encodeURIComponent(geminiKey)}`;
+                }
+                const body = { prompt: { text: prompt }, temperature: 0.2, max_output_tokens: 512 };
+                const aiResp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+                if (aiResp.ok) {
+                    const aiJson = await aiResp.json();
+                    resultText = parseGenResponse(aiJson) || '';
+                } else {
+                    const errText = await aiResp.text();
+                    console.warn('generate endpoint failed', aiResp.status, errText);
+                }
+            } catch (err) {
+                console.warn('generate endpoint error', err && err.message ? err.message : err);
+            }
+        }
+
+        // 3) Try older generateText endpoint (newsletterController uses this)
+        if (!resultText) {
+            try {
+                const urlBase2 = `https://generativelanguage.googleapis.com/v1beta2/models/${model}:generateText`;
+                let url2 = urlBase2;
+                if (!(typeof geminiKey === 'string' && geminiKey.startsWith('ya29.'))) {
+                    const sep2 = urlBase2.includes('?') ? '&' : '?';
+                    url2 = `${urlBase2}${sep2}key=${encodeURIComponent(geminiKey)}`;
+                }
+                const fetchBody = { prompt: { text: prompt }, temperature: 0.2, maxOutputTokens: 512 };
+                const resp = await fetch(url2, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fetchBody) });
+                if (resp.ok) {
+                    const json = await resp.json();
+                    resultText = parseGenResponse(json) || '';
+                } else {
+                    const errText = await resp.text();
+                    console.warn(':generateText failed', resp.status, errText);
+                }
+            } catch (e) {
+                console.warn('generateText error', e && e.message ? e.message : e);
+            }
+        }
+
+        // 4) Fallback to OpenAI if available
+        if (!resultText && process.env.OPENAI_API_KEY) {
+            try {
+                const openaiKey = process.env.OPENAI_API_KEY;
+                const oresp = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiKey}` },
+                    body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: [{ role: 'system', content: 'You are an expert career coach.' }, { role: 'user', content: prompt }], max_tokens: 512, temperature: 0.2 })
+                });
+                if (oresp.ok) {
+                    const oj = await oresp.json();
+                    resultText = oj.choices && oj.choices[0] && oj.choices[0].message && oj.choices[0].message.content ? oj.choices[0].message.content : '';
+                } else {
+                    const et = await oresp.text();
+                    console.warn('OpenAI fallback failed', oresp.status, et);
+                }
+            } catch (e) {
+                console.warn('OpenAI call error', e && e.message ? e.message : e);
+            }
+        }
+
+        if (!resultText) {
+            return res.status(502).json({ success: false, message: 'No text-generation model available for this API key and no fallback succeeded' });
+        }
+
+        return res.status(200).json({ success: true, analysis: resultText });
+
+    } catch (error) {
+        console.error('compareJDWithResume error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
 };

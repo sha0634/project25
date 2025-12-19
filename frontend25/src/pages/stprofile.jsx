@@ -58,6 +58,9 @@ export default function StudentProfile() {
   const [cvFile, setCvFile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [microtasks, setMicrotasks] = useState([]);
+  const [jdText, setJdText] = useState('');
+  const [analysis, setAnalysis] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
 
   // Fetch profile data on mount
   useEffect(() => {
@@ -444,6 +447,40 @@ export default function StudentProfile() {
     }
   };
 
+  const handleAnalyzeJD = async () => {
+    if (!jdText || jdText.trim().length === 0) {
+      alert('Please paste a job description to analyze.');
+      return;
+    }
+
+    try {
+      setAnalyzing(true);
+      setAnalysis('');
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/profile/student/compare-jd', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ jdText })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAnalysis(data.analysis);
+      } else {
+        console.error('Analyze error:', data);
+        alert(data.message || 'Failed to analyze JD');
+      }
+    } catch (err) {
+      console.error('Error analyzing JD:', err);
+      alert('Failed to analyze JD. See console for details.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   return (
     <div className={`${rootTheme} min-h-screen px-4 py-8`}>
       {loading ? (
@@ -737,6 +774,36 @@ export default function StudentProfile() {
               <input type="file" accept=".pdf" className="hidden" onChange={handleCvUpload} />
               <Upload className="w-4 h-4" /> Upload CV (PDF only)
             </label>
+          )}
+        </div>
+
+        {/* AI: JD vs Resume Analysis */}
+        <div className={`p-6 mt-6 rounded-xl shadow-md border ${cardTheme}`}>
+          <h3 className="text-xl font-semibold mb-3">AI: Job Description vs Your Resume</h3>
+
+          <p className="text-sm text-slate-500 mb-2">Paste a job description below to get a short comparison and suggestions.</p>
+          <textarea
+            value={jdText}
+            onChange={(e) => setJdText(e.target.value)}
+            placeholder="Paste job description here..."
+            className={`w-full p-3 rounded-lg border ${inputTheme} mb-3`}
+            rows={6}
+          />
+
+          <div className="flex gap-3 items-center">
+            <button onClick={handleAnalyzeJD} disabled={analyzing} className="px-4 py-2 bg-[#443097] text-white rounded-lg hover:bg-[#36217c]">
+              {analyzing ? 'Analyzing...' : 'Analyze JD vs Resume'}
+            </button>
+            <button onClick={() => { setJdText(''); setAnalysis(''); }} className="px-3 py-2 border rounded-lg">Clear</button>
+          </div>
+
+          {analysis && (
+            <div className={`mt-4 p-4 rounded-lg border ${cardTheme} whitespace-pre-wrap`}>
+              <h4 className="font-semibold mb-2">AI Analysis</h4>
+              <div className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>
+                {analysis}
+              </div>
+            </div>
           )}
         </div>
 
