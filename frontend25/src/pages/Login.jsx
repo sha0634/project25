@@ -17,7 +17,51 @@ export default function LoginPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const existing = document.getElementById('google-client-script');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.id = 'google-client-script';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        try {
+          /* global google */
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (response) => {
+              setError('');
+              setLoading(true);
+              try {
+                const idToken = response.credential;
+                const result = await googleLogin(idToken);
+                if (!result.success) setError(result.message || 'Google login failed');
+              } catch (err) {
+                console.error('Google callback error', err);
+                setError('Google login failed');
+              } finally {
+                setLoading(false);
+              }
+            }
+          });
+
+          window.google.accounts.id.renderButton(
+            document.getElementById('g_id_signin'),
+            { theme: 'outline', size: 'large', width: '100%' }
+          );
+        } catch (err) {
+          console.error('Error initializing Google Identity Services', err);
+        }
+      };
+      document.body.appendChild(script);
+    }
+  }, [googleLogin]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -122,13 +166,12 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6 space-y-4">
-            <button className="w-full flex items-center justify-center gap-3 h-[1cm] bg-white border py-3 rounded-xl shadow-sm">
-              <img
-                src="https://www.svgrepo.com/show/355037/google.svg"
-                className="w-5"
-              />
-              Login with Google
-            </button>
+            <div>
+              <div id="g_id_signin"></div>
+              {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                <div className="mt-2 text-xs text-yellow-600">Set VITE_GOOGLE_CLIENT_ID in your frontend env to enable Google login.</div>
+              )}
+            </div>
           <div className="text-center mt-5 font-semibold text-gray-600">
             Don't have an account?{" "}
             <Link to="/signup" className="text-[#2b128f] font-semibold">
@@ -158,3 +201,6 @@ export default function LoginPage() {
     </div>
   );
 }
+
+// Load Google Identity Services button
+// We intentionally put this outside the component to avoid multiple listeners in hot reload — handled via effect below.

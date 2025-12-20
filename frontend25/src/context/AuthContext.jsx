@@ -124,6 +124,40 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async (idToken) => {
+        try {
+            const response = await fetch(`${API_URL}/auth/google`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userId', data.user._id);
+                setToken(data.token);
+                setUser(data.user);
+                // If backend indicates this is a newly created user, send them to profile onboarding
+                if (data.newUser) {
+                    // Optionally set a flag so the profile page can open edit mode
+                    try { localStorage.setItem('newUser', '1'); } catch (e) {}
+                    navigate('/stprofile?new=true');
+                    return { success: true, newUser: true };
+                }
+                if (data.user.userType === 'student') navigate('/stdashboard');
+                else if (data.user.userType === 'company') navigate('/codashboard');
+                else navigate('/');
+                return { success: true, newUser: false };
+            }
+            return { success: false, message: data.message };
+        } catch (err) {
+            console.error('Google login error:', err);
+            return { success: false, message: 'Error connecting to server' };
+        }
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
@@ -138,6 +172,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         signup,
         login,
+        googleLogin,
         logout,
         isAuthenticated: !!user
     };

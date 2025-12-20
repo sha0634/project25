@@ -386,6 +386,9 @@ exports.updateStudentProfile = async (req, res) => {
                     skills,
                     resume,
                     qualifications,
+                    timezone,
+                    emailVerified,
+                    phoneVerified,
 
                     // Role & Goal
                     currentStatus,
@@ -517,8 +520,8 @@ exports.updateStudentProfile = async (req, res) => {
         if (resumeLastUpdated !== undefined) user.profile.resumeLastUpdated = resumeLastUpdated;
 
         // Preferences
-        if (internshipTypePreference !== undefined) user.profile.internshipTypePreference = internshipTypePreference;
-        if (workModePreference !== undefined) user.profile.workModePreference = workModePreference;
+        if (internshipTypePreference !== undefined && internshipTypePreference !== '') user.profile.internshipTypePreference = internshipTypePreference;
+        if (workModePreference !== undefined && workModePreference !== '') user.profile.workModePreference = workModePreference;
         if (preferredDomains !== undefined) user.profile.preferredDomains = preferredDomains;
         if (preferredCompanySize !== undefined) user.profile.preferredCompanySize = preferredCompanySize;
 
