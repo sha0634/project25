@@ -21,6 +21,51 @@ export default function SignUpPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
+  const { googleLogin } = useAuth();
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const existing = document.getElementById('google-client-script');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.id = 'google-client-script';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        try {
+          /* global google */
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (response) => {
+              setError('');
+              setLoading(true);
+              try {
+                const idToken = response.credential;
+                const result = await googleLogin(idToken);
+                if (!result.success) setError(result.message || 'Google signup failed');
+              } catch (err) {
+                console.error('Google callback error', err);
+                setError('Google signup failed');
+              } finally {
+                setLoading(false);
+              }
+            }
+          });
+
+          window.google.accounts.id.renderButton(
+            document.getElementById('g_id_signup'),
+            { theme: 'outline', size: 'large', width: '100%' }
+          );
+        } catch (err) {
+          console.error('Error initializing Google Identity Services', err);
+        }
+      };
+      document.body.appendChild(script);
+    }
+  }, [googleLogin]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -192,13 +237,10 @@ export default function SignUpPage() {
           </div>
 
           <div className="mt-5 space-y-4">
-            <button className="w-full flex items-center justify-center gap-3 bg-white border py-3 rounded-xl shadow-sm h-[1cm]">
-              <img
-                src="https://www.svgrepo.com/show/355037/google.svg"
-                className="w-5"
-              />
-              Sign Up with Google
-            </button>
+            <div id="g_id_signup"></div>
+            {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+              <div className="mt-2 text-xs text-yellow-600">Set VITE_GOOGLE_CLIENT_ID in your frontend env to enable Google signup.</div>
+            )}
 
             <p className="text-center">
                 Already have an account?{" "}

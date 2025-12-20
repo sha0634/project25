@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -172,4 +173,93 @@ exports.logout = async (req, res) => {
         success: true,
         message: 'Logged out successfully'
     });
+};
+
+// @desc    Login or register using Google ID token
+// @route   POST /api/auth/google
+// @access  Public
+exports.googleLogin = async (req, res) => {
+    try {
+        const { idToken } = req.body;
+
+        if (!idToken) {
+            return res.status(400).json({ success: false, message: 'Missing idToken' });
+        }
+
+        const fetchLib = global.fetch || require('node-fetch');
+
+        // Verify token with Google
+        const verifyRes = await fetchLib(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+        if (!verifyRes.ok) {
+            const txt = await verifyRes.text();
+            return res.status(401).json({ success: false, message: 'Invalid Google ID token', details: txt });
+        }
+
+        const payload = await verifyRes.json();
+
+        // payload contains: email, email_verified, name, picture, sub
+        if (!payload.email || payload.email_verified !== 'true' && payload.email_verified !== true) {
+            return res.status(400).json({ success: false, message: 'Google account email not verified' });
+        }
+
+        const email = payload.email.toLowerCase();
+        const fullName = payload.name || (email.split('@')[0] || 'User');
+
+        // Check if user exists
+        let user = await User.findOne({ email });
+        let created = false;
+
+        if (!user) {
+            // Create a username from name or email local part
+            let baseUsername = (fullName || email.split('@')[0]).replace(/\s+/g, '_').toLowerCase();
+            // Ensure uniqueness
+            let username = baseUsername;
+            let i = 0;
+            while (await User.findOne({ username })) {
+                i += 1;
+                username = `${baseUsername}${i}`;
+            }
+
+            // Generate a random password since password is required by schema
+            const randomPassword = crypto.randomBytes(16).toString('hex');
+
+            const userData = {
+                username,
+                email,
+                password: randomPassword,
+                userType: 'student',
+                profile: {
+                    fullName,
+                    profilePicture: payload.picture || '',
+                    emailVerified: true
+                }
+            };
+
+            user = await User.create(userData);
+            created = true;
+        } else {
+            // Existing user: ensure emailVerified and profile picture are up-to-date
+            let updated = false;
+            if (!user.profile) user.profile = {};
+            if (!user.profile.emailVerified) {
+                user.profile.emailVerified = true;
+                updated = true;
+            }
+            if (payload.picture && user.profile.profilePicture !== payload.picture) {
+                user.profile.profilePicture = payload.picture;
+                updated = true;
+            }
+            if (updated) {
+                try { await user.save(); } catch (e) { console.warn('Failed saving updated user after Google login', e); }
+            }
+        }
+
+        // Generate JWT
+        const token = generateToken(user._id);
+
+        res.status(200).json({ success: true, message: 'Login successful', token, user: user.toPublicJSON(), newUser: created });
+    } catch (error) {
+        console.error('Google login error:', error);
+        res.status(500).json({ success: false, message: 'Google login failed', error: error.message });
+    }
 };
