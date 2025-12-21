@@ -375,9 +375,10 @@ export default function StudentDashboard() {
       {/* NAVBAR (omitted for brevity) */}
       <header className="border-b border-slate-200/60 dark:border-slate-700/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:py-4">
-          <div className="font-semibold text-lg  text-[#2b128f] md:text-xl px">
-            Placify
-          </div>
+					<div className="flex items-center gap-2">
+						<img src={logo} alt="Placify" className="w-8 h-8 object-contain" />
+						<div className="font-semibold text-lg text-[#2b128f] md:text-xl">Placify</div>
+					</div>
 
           {/* Hamburger Button - Mobile Only */}
           <button 

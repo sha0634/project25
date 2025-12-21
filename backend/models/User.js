@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
         // Common fields
         fullName: {
             type: String,
-            required: [true, 'Full name is required']
+            default: ''
         },
         phone: {
             type: String,
