@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { GraduationCap, Building2, Sparkles } from 'lucide-react';
+import emailImg from "../assets/email.png";
+import passImg from "../assets/passimg.png";
+import userImg from "../assets/userimg.png";
 
 const images = [
   "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg",
@@ -165,7 +168,8 @@ export default function SignUpPage() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="relative">
               <img
-                src="/images/userimg.png"
+                src={userImg}
+                alt="user icon"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input
@@ -180,7 +184,8 @@ export default function SignUpPage() {
 
             <div className="relative">
               <img
-                src="/images/userimg.png"
+                src={userImg}
+                alt="user icon"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input
@@ -195,7 +200,8 @@ export default function SignUpPage() {
 
             <div className="relative">
               <img
-                src="/images/emailimg.png"
+                src={emailImg}
+                alt="email icon"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input
@@ -210,7 +216,8 @@ export default function SignUpPage() {
 
             <div className="relative">
               <img
-                src="/images/passimg.png"
+                src={passImg}
+                alt="password icon"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input

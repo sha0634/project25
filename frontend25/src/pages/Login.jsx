@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Sparkles } from 'lucide-react';
+import emailImg from "../assets/email.png";
+import passImg from "../assets/passimg.png";
 
 const images = [
   "https://images.pexels.com/photos/3769021/pexels-photo-3769021.jpeg",
@@ -119,7 +121,8 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="relative">
               <img
-                src="/images/emailimg.png"
+                src={emailImg}
+                alt="email icon"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input
@@ -134,7 +137,8 @@ export default function LoginPage() {
 
             <div className="relative">
               <img
-                src="/images/passimg.png"
+                src={passImg}
+                alt="password icon"
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2"
               />
               <input
