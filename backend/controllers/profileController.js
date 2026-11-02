@@ -209,7 +209,7 @@ exports.uploadProfilePicture = async (req, res) => {
 
         console.log('Profile picture saved to DB:', picturePath);
         console.log('File saved to disk:', req.file.path);
-        console.log('Full URL will be: http://localhost:5000' + picturePath);
+        console.log('Full URL will be: https://placify-1-n34n.onrender.com' + picturePath);
 
         res.status(200).json({
             success: true,

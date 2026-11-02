@@ -76,7 +76,7 @@ function CompanyCreateCourse({ theme }) {
       videoUrls: JSON.stringify((course.videos || []).map(s => (s||"").trim()).filter(Boolean))
     };
 
-    fetch('http://localhost:5000/api/courses', {
+    fetch('https://placify-1-n34n.onrender.com/api/courses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ function StudentCourses({ theme }) {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/courses');
+      const res = await fetch('https://placify-1-n34n.onrender.com/api/courses');
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       const filtered = (data.courses || []).filter(c => (c.companyId || c.companyName));
@@ -224,7 +224,7 @@ function StudentCourses({ theme }) {
       const urls = [];
       for (let i = 0; i < (course.videos || []).length; i++) {
         try {
-          const res = await fetch(`http://localhost:5000/api/courses/${course._id}/video/${i}`, {
+          const res = await fetch(`https://placify-1-n34n.onrender.com/api/courses/${course._id}/video/${i}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (!res.ok) {
@@ -258,7 +258,7 @@ function StudentCourses({ theme }) {
     if (!token || !userId) return alert('Please login as a student to enroll');
 
     try {
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/enroll`, {
+      const res = await fetch(`https://placify-1-n34n.onrender.com/api/courses/${courseId}/enroll`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -359,7 +359,7 @@ function StudentProfile({ theme }) {
   useEffect(() => {
     const fetchEnrolled = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/courses');
+        const res = await fetch('https://placify-1-n34n.onrender.com/api/courses');
         if (!res.ok) throw new Error('Failed');
         const data = await res.json();
         const userId = localStorage.getItem('userId');
@@ -385,7 +385,7 @@ function StudentProfile({ theme }) {
       const urls = [];
       for (let i = 0; i < (course.videos || []).length; i++) {
         try {
-          const res = await fetch(`http://localhost:5000/api/courses/${course._id}/video/${i}`, { headers: { Authorization: `Bearer ${token}` } });
+          const res = await fetch(`https://placify-1-n34n.onrender.com/api/courses/${course._id}/video/${i}`, { headers: { Authorization: `Bearer ${token}` } });
           if (!res.ok) { urls.push(null); continue; }
           const blob = await res.blob();
           urls.push(URL.createObjectURL(blob));

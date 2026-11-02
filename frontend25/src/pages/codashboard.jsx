@@ -124,7 +124,7 @@ export default function CompanyDashboard() {
   const fetchInternships = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/internships/company/my-internships', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/internships/company/my-internships', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -143,7 +143,7 @@ export default function CompanyDashboard() {
   const fetchApplicants = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/internships/company/my-internships', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/internships/company/my-internships', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -177,7 +177,7 @@ export default function CompanyDashboard() {
   const fetchNewsletters = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/newsletters/company/my-newsletters', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/newsletters/company/my-newsletters', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -196,7 +196,7 @@ export default function CompanyDashboard() {
   const fetchCourses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/courses/company/my-courses', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/courses/company/my-courses', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -215,7 +215,7 @@ export default function CompanyDashboard() {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/notifications', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/notifications', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -235,7 +235,7 @@ export default function CompanyDashboard() {
   const markAsRead = async (notificationId) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+      await fetch(`https://placify-1-n34n.onrender.com/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -261,7 +261,7 @@ export default function CompanyDashboard() {
     
     // Define socket logic to use in conditional block
     const setupSocket = () => {
-        socketRef.current = io('http://localhost:5000');
+        socketRef.current = io('https://placify-1-n34n.onrender.com');
         
         socketRef.current.on('connect', () => {
           socketRef.current.emit('register', userId);
@@ -375,8 +375,8 @@ export default function CompanyDashboard() {
       const skillsArray = formData.skills.split(',').map(s => s.trim()).filter(s => s);
       
       const url = editingInternship 
-        ? `http://localhost:5000/api/internships/${editingInternship._id}`
-        : 'http://localhost:5000/api/internships';
+        ? `https://placify-1-n34n.onrender.com/api/internships/${editingInternship._id}`
+        : 'https://placify-1-n34n.onrender.com/api/internships';
       
       const method = editingInternship ? 'PUT' : 'POST';
       
@@ -442,7 +442,7 @@ export default function CompanyDashboard() {
       if (editingCourseId && removeVideos && removeVideos.length > 0) {
         data.append('removeVideos', JSON.stringify(removeVideos));
       }
-      const url = editingCourseId ? `http://localhost:5000/api/courses/${editingCourseId}` : 'http://localhost:5000/api/courses';
+      const url = editingCourseId ? `https://placify-1-n34n.onrender.com/api/courses/${editingCourseId}` : 'https://placify-1-n34n.onrender.com/api/courses';
       const method = editingCourseId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -491,7 +491,7 @@ export default function CompanyDashboard() {
     if (!selectedInternship || !selectedApplicant) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/internships/${selectedInternship._id}/applicants/${selectedApplicant._id}/status`, {
+      const res = await fetch(`https://placify-1-n34n.onrender.com/api/internships/${selectedInternship._id}/applicants/${selectedApplicant._id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -526,7 +526,7 @@ export default function CompanyDashboard() {
       const studentId = typeof student === 'string' ? student : (student && (student._id || student.id));
       if (!studentId) return alert('Student ID not available');
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/profile/student/${studentId}/resume`, {
+      const res = await fetch(`https://placify-1-n34n.onrender.com/api/profile/student/${studentId}/resume`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -624,7 +624,7 @@ export default function CompanyDashboard() {
       try {
         const token = localStorage.getItem('token');
         if (!studentId) return;
-        const res = await fetch(`http://localhost:5000/api/profile/student/${studentId}`, {
+        const res = await fetch(`https://placify-1-n34n.onrender.com/api/profile/student/${studentId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!res.ok) return;
@@ -1208,7 +1208,7 @@ export default function CompanyDashboard() {
                   onClick={async () => {
                     try {
                       const token = localStorage.getItem('token');
-                      await fetch('http://localhost:5000/api/notifications/mark-all-read', {
+                      await fetch('https://placify-1-n34n.onrender.com/api/notifications/mark-all-read', {
                         method: 'PUT',
                         headers: { 'Authorization': `Bearer ${token}` }
                       });
@@ -1286,7 +1286,7 @@ export default function CompanyDashboard() {
                             try {
                               const token = localStorage.getItem('token');
                               const { internshipId } = microtaskAssigning;
-                              const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
+                              const resp = await fetch(`https://placify-1-n34n.onrender.com/api/internships/${internshipId}/microtasks/generate`, {
                                 method: 'POST',
                                 headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
                                 body: JSON.stringify({ questionCount })
@@ -1354,7 +1354,7 @@ export default function CompanyDashboard() {
                       const { internshipId, studentId } = microtaskAssigning;
                       const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
                       if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
-                      const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
+                      const resp = await fetch(`https://placify-1-n34n.onrender.com/api/internships/${internshipId}/microtasks`, {
                         method: 'POST',
                         headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify(body)
@@ -1394,7 +1394,7 @@ export default function CompanyDashboard() {
                 const token = localStorage.getItem('token');
                 if (editingNewsletterId) {
                   // Update
-                  const resp = await fetch(`http://localhost:5000/api/newsletters/${editingNewsletterId}`, {
+                  const resp = await fetch(`https://placify-1-n34n.onrender.com/api/newsletters/${editingNewsletterId}`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',
@@ -1414,7 +1414,7 @@ export default function CompanyDashboard() {
                   }
                 } else {
                   // Create
-                  const resp = await fetch('http://localhost:5000/api/newsletters', {
+                  const resp = await fetch('https://placify-1-n34n.onrender.com/api/newsletters', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -1455,7 +1455,7 @@ export default function CompanyDashboard() {
                     setGeneratingAI(true);
                     try {
                       const token = localStorage.getItem('token');
-                      const resp = await fetch('http://localhost:5000/api/newsletters/generate', {
+                      const resp = await fetch('https://placify-1-n34n.onrender.com/api/newsletters/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
                         body: JSON.stringify({ prompt: nwPrompt })
@@ -1823,7 +1823,7 @@ export default function CompanyDashboard() {
                         </button>
                         {applicant.studentId?.profile?.resume && (
                           <a
-                            href={`http://localhost:5000${applicant.studentId.profile.resume}`}
+                            href={`https://placify-1-n34n.onrender.com${applicant.studentId.profile.resume}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             download
@@ -1888,7 +1888,7 @@ export default function CompanyDashboard() {
               {selectedCourseDetails.videos && selectedCourseDetails.videos.length > 0 ? (
                 <ul className="list-disc list-inside text-sm mt-2">
                   {selectedCourseDetails.videos.map((v, i) => (
-                    <li key={i}><a href={`http://localhost:5000${v}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{`Video ${i+1}`}</a></li>
+                    <li key={i}><a href={`https://placify-1-n34n.onrender.com${v}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{`Video ${i+1}`}</a></li>
                   ))}
                 </ul>
               ) : (
@@ -1958,7 +1958,7 @@ export default function CompanyDashboard() {
               {(selectedApplicant.studentId?.profile?.resume || selectedApplicant.studentId?.profile?.resumePath || selectedApplicant.studentId?.profile?.resumeText) && (
                 (() => {
                   const r = (selectedApplicant.studentId.profile.resume || selectedApplicant.studentId.profile.resumePath || '');
-                  const href = r && r.startsWith('http') ? r : (r ? `http://localhost:5000/${r.replace(/^\/+/, '')}` : null);
+                  const href = r && r.startsWith('http') ? r : (r ? `https://placify-1-n34n.onrender.com/${r.replace(/^\/+/, '')}` : null);
                   const resumeText = selectedApplicant.studentId?.profile?.resumeText || null;
                   return (
                     <div className="border-t pt-4">
@@ -2036,7 +2036,7 @@ export default function CompanyDashboard() {
                           try {
                             const token = localStorage.getItem('token');
                             const { internshipId } = microtaskAssigning;
-                            const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks/generate`, {
+                            const resp = await fetch(`https://placify-1-n34n.onrender.com/api/internships/${internshipId}/microtasks/generate`, {
                               method: 'POST',
                               headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
                               body: JSON.stringify({ questionCount })
@@ -2104,7 +2104,7 @@ export default function CompanyDashboard() {
                     const { internshipId, studentId } = microtaskAssigning;
                     const body = { title: microtaskForm.title, type: microtaskForm.type, instructions: microtaskForm.instructions, assignedTo: studentId, dueDate: microtaskForm.dueDate };
                     if (microtaskForm.type === 'quiz' && microtaskQuestions.length > 0) body.quizQuestions = microtaskQuestions;
-                    const resp = await fetch(`http://localhost:5000/api/internships/${internshipId}/microtasks`, {
+                    const resp = await fetch(`https://placify-1-n34n.onrender.com/api/internships/${internshipId}/microtasks`, {
                       method: 'POST',
                       headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
                       body: JSON.stringify(body)
@@ -2340,7 +2340,7 @@ function EnrolledStudentsList({ courseId }) {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`http://localhost:5000/api/courses/${courseId}/enrolled`, {
+        const res = await fetch(`https://placify-1-n34n.onrender.com/api/courses/${courseId}/enrolled`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
@@ -2374,7 +2374,7 @@ function EnrolledStudentsList({ courseId }) {
               <div className="text-xs text-slate-600">{s.email || ''}{s.phone ? ` · ${s.phone}` : ''}</div>
             </div>
             {s.resume ? (
-              <a href={s.resume.startsWith('http') ? s.resume : `http://localhost:5000/${s.resume.replace(/^\/+/, '')}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">View CV</a>
+              <a href={s.resume.startsWith('http') ? s.resume : `https://placify-1-n34n.onrender.com/${s.resume.replace(/^\/+/, '')}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">View CV</a>
             ) : (
               <></>
             )}

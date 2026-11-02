@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://placify-1-n34n.onrender.com/api';
 
     // Check if user is logged in on mount
     useEffect(() => {

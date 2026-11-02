@@ -21,7 +21,7 @@ export default function CreateNewsletter() {
     setSubmitting(true)
     try {
       const token = localStorage.getItem('token')
-      const res = await fetch('http://localhost:5000/api/newsletters', {
+      const res = await fetch('https://placify-1-n34n.onrender.com/api/newsletters', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

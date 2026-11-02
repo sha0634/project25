@@ -67,7 +67,7 @@ export default function StudentProfile() {
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/profile/student', {
+        const response = await fetch('https://placify-1-n34n.onrender.com/api/profile/student', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -78,7 +78,7 @@ export default function StudentProfile() {
           const profile = data.profile;
           
           console.log('Profile picture from DB:', profile.profilePicture);
-          const imageUrl = profile.profilePicture ? `http://localhost:5000${profile.profilePicture}` : null;
+          const imageUrl = profile.profilePicture ? `https://placify-1-n34n.onrender.com${profile.profilePicture}` : null;
           console.log('Constructed image URL:', imageUrl);
           
           setProfileData({
@@ -126,7 +126,7 @@ export default function StudentProfile() {
           });
 
           if (profile.resume) {
-            setCvFile({ name: 'Resume.pdf', url: `http://localhost:5000${profile.resume}` });
+            setCvFile({ name: 'Resume.pdf', url: `https://placify-1-n34n.onrender.com${profile.resume}` });
           }
         }
       } catch (error) {
@@ -139,7 +139,7 @@ export default function StudentProfile() {
     const fetchApplications = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/internships/student/my-applications', {
+        const response = await fetch('https://placify-1-n34n.onrender.com/api/internships/student/my-applications', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -162,7 +162,7 @@ export default function StudentProfile() {
   const fetchMicrotasks = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/internships/student/microtasks', {
+      const res = await fetch('https://placify-1-n34n.onrender.com/api/internships/student/microtasks', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -179,7 +179,7 @@ export default function StudentProfile() {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/profile/student', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/profile/student', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -286,7 +286,7 @@ export default function StudentProfile() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/profile/upload-picture', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/profile/upload-picture', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -298,7 +298,7 @@ export default function StudentProfile() {
       console.log('Upload response:', data);
 
       if (response.ok) {
-        const newImageUrl = `http://localhost:5000${data.profilePicture}`;
+        const newImageUrl = `https://placify-1-n34n.onrender.com${data.profilePicture}`;
         console.log('Image uploaded successfully. New URL:', newImageUrl);
         setProfileData(prev => ({ 
           ...prev, 
@@ -339,7 +339,7 @@ export default function StudentProfile() {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/profile/student/upload-resume', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/profile/student/upload-resume', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -357,7 +357,7 @@ export default function StudentProfile() {
       if (response.ok) {
         setCvFile({ 
           name: data.fileName, 
-          url: `http://localhost:5000${data.resumePath}` 
+          url: `https://placify-1-n34n.onrender.com${data.resumePath}` 
         });
 
         // Auto-fill profile data from extracted CV information
@@ -427,7 +427,7 @@ export default function StudentProfile() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/profile/student/delete-resume', {
+      const response = await fetch('https://placify-1-n34n.onrender.com/api/profile/student/delete-resume', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -457,7 +457,7 @@ export default function StudentProfile() {
       setAnalyzing(true);
       setAnalysis('');
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/profile/student/compare-jd', {
+      const res = await fetch('https://placify-1-n34n.onrender.com/api/profile/student/compare-jd', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -989,7 +989,7 @@ function MicrotaskSubmit({ task, onSubmitted }) {
         body = JSON.stringify({ submissionType: 'link', content: link });
       }
 
-      const res = await fetch(`http://localhost:5000/api/internships/${task.internshipId}/microtasks/${task.taskId}/submit`, {
+      const res = await fetch(`https://placify-1-n34n.onrender.com/api/internships/${task.internshipId}/microtasks/${task.taskId}/submit`, {
         method: 'POST',
         headers,
         body
